@@ -2,21 +2,140 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="robots" content="noindex, nofollow">
-  <title>Grupo Imar — Nueva incidencia</title>
-  <style>
-    body { font-family: -apple-system, system-ui, sans-serif; max-width: 480px; margin: 2rem auto; padding: 1rem; line-height: 1.5; }
-    h1 { font-size: 1.5rem; }
-    .placeholder { background: #f5f5f5; padding: 1rem; border-left: 4px solid #999; }
-  </style>
+  <meta name="theme-color" content="#1565c0">
+  <title>Nueva incidencia — Grupo Imar</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <h1>Grupo Imar — Nueva incidencia</h1>
-  <div class="placeholder">
-    <p><strong>Placeholder F1.</strong></p>
-    <p>Este será el formulario móvil del operario. Se construirá en F1 según el modelo de datos definido en el vault de Obsidian.</p>
-    <p>Si ves esta página, GitHub Pages está sirviendo el repo correctamente.</p>
-  </div>
+
+<main>
+
+  <header>
+    <h1>Nueva incidencia</h1>
+    <span class="subtitle">Grupo Imar</span>
+  </header>
+
+  <!-- ===== Pantalla 1: cargando catálogos ===== -->
+  <section id="screen-loading" class="card">
+    <p style="text-align:center; margin: 0.5rem 0;">
+      <span class="spinner" aria-hidden="true"></span>
+      Cargando datos de planta…
+    </p>
+    <div class="skeleton lg"></div>
+    <div class="skeleton lg"></div>
+    <div class="skeleton"></div>
+  </section>
+
+  <!-- ===== Pantalla 2: formulario ===== -->
+  <form id="screen-form" class="card hidden" novalidate>
+
+    <div id="form-error" class="error-banner hidden" role="alert"></div>
+
+    <div class="field">
+      <label for="id_operario">
+        Operario
+        <span class="required" aria-label="obligatorio">*</span>
+      </label>
+      <select id="id_operario" name="id_operario" required>
+        <option value="" disabled selected>Selecciona tu nombre…</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="id_maquina">
+        Máquina
+        <span class="required" aria-label="obligatorio">*</span>
+      </label>
+      <select id="id_maquina" name="id_maquina" required>
+        <option value="" disabled selected>Selecciona la máquina…</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>
+        ¿La máquina está parada?
+        <span class="required" aria-label="obligatorio">*</span>
+      </label>
+      <div class="toggle" role="radiogroup" aria-labelledby="lbl-parada">
+        <button type="button" data-value="Sí" aria-pressed="false">Sí, parada</button>
+        <button type="button" data-value="No" aria-pressed="false">No, sigue</button>
+      </div>
+      <input type="hidden" id="maquina_parada" name="maquina_parada" required>
+    </div>
+
+    <div class="field">
+      <label for="descripcion">
+        ¿Qué pasa?
+        <span class="required" aria-label="obligatorio">*</span>
+        <span class="hint">Describe brevemente el problema (mínimo 5 caracteres).</span>
+      </label>
+      <textarea id="descripcion" name="descripcion" rows="3" minlength="5" maxlength="500" required
+                placeholder="Ej: el motor del rodillo no arranca y salta el térmico"></textarea>
+    </div>
+
+    <div class="field">
+      <label for="observaciones">
+        Observaciones
+        <span class="hint">Opcional. Cualquier dato extra (cuándo empezó, qué intentaste, etc.).</span>
+      </label>
+      <textarea id="observaciones" name="observaciones" rows="2" maxlength="500"
+                placeholder="Opcional"></textarea>
+    </div>
+
+    <button type="submit" class="primary" id="btn-submit">
+      Crear incidencia
+    </button>
+
+  </form>
+
+  <!-- ===== Pantalla 3: enviando ===== -->
+  <section id="screen-sending" class="card hidden">
+    <div class="status">
+      <span class="spinner" aria-hidden="true"></span>
+      <h2>Enviando incidencia…</h2>
+      <p>Un momento, avisando a Edwin.</p>
+    </div>
+  </section>
+
+  <!-- ===== Pantalla 4: éxito ===== -->
+  <section id="screen-success" class="card hidden">
+    <div class="status success">
+      <span class="icon" aria-hidden="true">✓</span>
+      <h2>Incidencia registrada</h2>
+      <p>Edwin ha sido avisado.</p>
+      <span class="codigo" id="success-codigo">INC-…</span>
+      <p id="success-mensaje" style="margin-top:0.5rem;"></p>
+
+      <div class="actions">
+        <button type="button" class="primary" id="btn-otra">Crear otra incidencia</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Pantalla 5: error ===== -->
+  <section id="screen-error" class="card hidden">
+    <div class="status error">
+      <span class="icon" aria-hidden="true">✕</span>
+      <h2>No se ha podido enviar</h2>
+      <p id="error-detalle">Algo ha fallado.</p>
+
+      <div class="actions">
+        <button type="button" class="primary" id="btn-reintentar">Reintentar</button>
+        <button type="button" class="secondary" id="btn-volver">Volver al formulario</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Grupo Imar · Sistema de incidencias · v<span id="ver"></span>
+  </footer>
+
+</main>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+
 </body>
 </html>
