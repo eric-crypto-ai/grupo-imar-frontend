@@ -2,21 +2,242 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="robots" content="noindex, nofollow">
-  <title>Grupo Imar — Panel mantenimiento</title>
-  <style>
-    body { font-family: -apple-system, system-ui, sans-serif; max-width: 480px; margin: 2rem auto; padding: 1rem; line-height: 1.5; }
-    h1 { font-size: 1.5rem; }
-    .placeholder { background: #f5f5f5; padding: 1rem; border-left: 4px solid #999; }
-  </style>
+  <meta name="theme-color" content="#0d47a1">
+  <title>Panel — Grupo Imar</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <h1>Grupo Imar — Panel mantenimiento</h1>
-  <div class="placeholder">
-    <p><strong>Placeholder F2.</strong></p>
-    <p>Este será el panel móvil de Edwin para gestionar incidencias. Se construirá en F2 según la arquitectura definida en el vault.</p>
-    <p>Si ves esta página, GitHub Pages está sirviendo el repo correctamente.</p>
+
+<main>
+
+  <header>
+    <h1>Panel mantenimiento</h1>
+    <span class="subtitle">Edwin · Grupo Imar</span>
+  </header>
+
+  <!-- ========== LOADING (al iniciar y al hacer auth) ========== -->
+  <section id="screen-loading" class="card">
+    <p style="text-align:center; margin: 0.5rem 0;">
+      <span class="spinner" aria-hidden="true"></span>
+      Cargando…
+    </p>
+    <div class="skeleton lg"></div>
+    <div class="skeleton lg"></div>
+    <div class="skeleton"></div>
+  </section>
+
+  <!-- ========== AUTH ERROR (URL sin ?k= o key inválida) ========== -->
+  <section id="screen-auth-error" class="card hidden">
+    <div class="status error">
+      <span class="icon" aria-hidden="true">✕</span>
+      <h2>Acceso denegado</h2>
+      <p id="auth-error-detalle">Esta URL no es válida o ha caducado. Pídele a Eric un enlace nuevo.</p>
+    </div>
+  </section>
+
+  <!-- ========== LISTA ========== -->
+  <section id="screen-lista" class="hidden">
+    <div class="card">
+      <div class="filtros">
+        <div class="tabs" role="tablist" aria-label="Filtro de estado">
+          <button data-filter="activas"  aria-pressed="true">Activas</button>
+          <button data-filter="todas"    aria-pressed="false">Todas</button>
+          <button data-filter="cerradas" aria-pressed="false">Cerradas</button>
+        </div>
+        <input type="search" id="busqueda" placeholder="Buscar por ID o descripción…" aria-label="Buscar">
+        <button type="button" class="secondary" id="btn-refresh">↻ Refrescar</button>
+      </div>
+      <p id="lista-meta" class="meta"></p>
+    </div>
+
+    <div id="lista-incidencias" class="lista-incidencias"></div>
+
+    <p id="lista-vacia" class="empty hidden">No hay incidencias con estos filtros.</p>
+  </section>
+
+  <!-- ========== FICHA ========== -->
+  <section id="screen-ficha" class="hidden">
+    <button type="button" class="back" id="btn-volver-lista">← Lista</button>
+
+    <div class="card ficha-cabecera">
+      <h2 id="ficha-id">INC-…</h2>
+      <p class="ficha-meta">
+        <span id="ficha-fecha"></span> ·
+        <span id="ficha-operario"></span>
+      </p>
+      <div class="ficha-estado-actual">
+        <span class="badge" id="ficha-estado-badge">…</span>
+        <span class="badge prioridad" id="ficha-prioridad-badge">·</span>
+      </div>
+    </div>
+
+    <!-- Reportado por operario (read-only) -->
+    <div class="card">
+      <h3>Reportado</h3>
+      <div class="kv"><span class="k">Máquina</span><span class="v" id="ro-maquina">·</span></div>
+      <div class="kv"><span class="k">Departamento</span><span class="v" id="ro-departamento">·</span></div>
+      <div class="kv"><span class="k">Máquina parada</span><span class="v" id="ro-parada">·</span></div>
+      <div class="kv block">
+        <span class="k">Descripción</span>
+        <p class="v" id="ro-descripcion">·</p>
+      </div>
+      <div class="kv block">
+        <span class="k">Observaciones operario</span>
+        <p class="v" id="ro-observaciones-op">·</p>
+      </div>
+    </div>
+
+    <!-- Editable: Clasificación -->
+    <form id="form-edicion" class="card">
+      <h3>Clasificación</h3>
+
+      <div class="field">
+        <label for="ed-categoria">Categoría</label>
+        <select id="ed-categoria" name="categoria"></select>
+      </div>
+
+      <div class="field">
+        <label for="ed-tipo_fallo">Tipo de fallo</label>
+        <select id="ed-tipo_fallo" name="tipo_fallo"></select>
+      </div>
+
+      <div class="field">
+        <label for="ed-motivo_fallo">
+          Motivo del fallo
+          <span class="hint">Obligatorio al pasar a Finalizada.</span>
+        </label>
+        <select id="ed-motivo_fallo" name="motivo_fallo">
+          <option value="">— sin asignar —</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="ed-prioridad">
+          Prioridad
+          <span class="hint" id="hint-prioridad-sugerida"></span>
+        </label>
+        <select id="ed-prioridad" name="prioridad">
+          <option value="">— sin asignar —</option>
+        </select>
+      </div>
+
+      <h3 style="margin-top:1.5rem;">Asignación</h3>
+
+      <div class="field">
+        <label>Origen de la intervención</label>
+        <div class="toggle">
+          <button type="button" data-name="origen_intervencion" data-value="Interno" aria-pressed="false">Interno</button>
+          <button type="button" data-name="origen_intervencion" data-value="Externo" aria-pressed="false">Externo</button>
+        </div>
+        <input type="hidden" id="ed-origen_intervencion" name="origen_intervencion">
+      </div>
+
+      <div class="field" id="campo-proveedor">
+        <label for="ed-proveedor_id">Proveedor</label>
+        <select id="ed-proveedor_id" name="proveedor_id">
+          <option value="">— sin asignar —</option>
+        </select>
+      </div>
+
+      <h3 style="margin-top:1.5rem;">Estado</h3>
+
+      <div class="field">
+        <label for="ed-estado">Estado</label>
+        <select id="ed-estado" name="estado"></select>
+      </div>
+
+      <div class="field" id="campo-comentario-estado">
+        <label for="ed-comentario_estado">
+          Comentario del cambio de estado
+          <span class="hint">Se guarda en el historial.</span>
+        </label>
+        <textarea id="ed-comentario_estado" name="comentario_estado" rows="2" maxlength="300"></textarea>
+      </div>
+
+      <h3 style="margin-top:1.5rem;">Trabajo realizado</h3>
+
+      <div class="field">
+        <label for="ed-fecha_inicio_intervencion">Inicio de la intervención</label>
+        <input type="datetime-local" id="ed-fecha_inicio_intervencion" name="fecha_inicio_intervencion">
+      </div>
+
+      <div class="field">
+        <label for="ed-fecha_fin_intervencion">Fin de la intervención</label>
+        <input type="datetime-local" id="ed-fecha_fin_intervencion" name="fecha_fin_intervencion">
+      </div>
+
+      <div class="field">
+        <label for="ed-descripcion_trabajo_realizado">¿Qué se hizo?</label>
+        <textarea id="ed-descripcion_trabajo_realizado" name="descripcion_trabajo_realizado" rows="3" maxlength="1000"></textarea>
+      </div>
+
+      <div class="field">
+        <label>¿Se quedó solucionado?</label>
+        <div class="toggle">
+          <button type="button" data-name="solvendo" data-value="Sí" aria-pressed="false">Sí</button>
+          <button type="button" data-name="solvendo" data-value="No" aria-pressed="false">No</button>
+        </div>
+        <input type="hidden" id="ed-solvendo" name="solvendo">
+      </div>
+
+      <div class="field" id="campo-trabajo_pendiente">
+        <label for="ed-trabajo_pendiente">Trabajo pendiente</label>
+        <textarea id="ed-trabajo_pendiente" name="trabajo_pendiente" rows="2" maxlength="500"></textarea>
+      </div>
+
+      <div class="field">
+        <label for="ed-observaciones">Observaciones</label>
+        <textarea id="ed-observaciones" name="observaciones" rows="2" maxlength="500"></textarea>
+      </div>
+
+      <div id="ficha-error" class="error-banner hidden" role="alert"></div>
+
+      <div class="acciones-ficha">
+        <button type="submit" class="primary" id="btn-guardar">Guardar cambios</button>
+        <button type="button" class="danger" id="btn-cancelar-incidencia">Cancelar incidencia</button>
+      </div>
+    </form>
+
+    <!-- Histórico de cambios -->
+    <div class="card">
+      <h3>Histórico</h3>
+      <ul id="lista-historial" class="historial"></ul>
+    </div>
+  </section>
+
+  <!-- ========== MODAL CANCELACIÓN ========== -->
+  <div id="modal-cancelar" class="modal hidden" role="dialog" aria-labelledby="modal-cancelar-title">
+    <div class="modal-card">
+      <h3 id="modal-cancelar-title">Cancelar incidencia</h3>
+      <p>Esta acción es definitiva. La incidencia queda marcada como <strong>Cancelada</strong> y se pide motivo obligatorio.</p>
+      <div class="field">
+        <label for="modal-motivo">
+          Motivo de cancelación
+          <span class="required">*</span>
+        </label>
+        <textarea id="modal-motivo" rows="3" maxlength="500" placeholder="Ej: incidencia duplicada / falsa alarma / creada por error"></textarea>
+      </div>
+      <div id="modal-error" class="error-banner hidden"></div>
+      <div class="acciones-modal">
+        <button type="button" class="secondary" id="btn-modal-volver">Volver</button>
+        <button type="button" class="danger" id="btn-modal-confirmar">Confirmar cancelación</button>
+      </div>
+    </div>
   </div>
+
+  <!-- ========== TOAST ========== -->
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <footer>
+    Grupo Imar · Panel · v<span id="ver"></span>
+  </footer>
+
+</main>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+
 </body>
 </html>
