@@ -14,6 +14,7 @@
   let CACHE_LISTA = null;      // último listado cargado
   let CACHE_INC   = null;      // incidencia actual en ficha
   let CACHE_HIST  = null;      // historial de la incidencia actual
+  let CACHE_COM   = null;      // comentarios de la incidencia actual
 
   const FILTRO_ACTUAL = { kind: 'activas', q: '' };
 
@@ -238,8 +239,10 @@
     }
     CACHE_INC  = r.data.incidencia;
     CACHE_HIST = r.data.historial || [];
+    CACHE_COM  = r.data.comentarios || [];
     rellenarFicha(CACHE_INC);
     rellenarHistorial(CACHE_HIST);
+    rellenarComentarios(CACHE_COM);
     showScreen('screen-ficha');
   }
 
@@ -358,6 +361,59 @@
     }
 
     hide('ficha-error');
+  }
+
+  function rellenarComentarios(coms) {
+    const ul = $('lista-comentarios');
+    ul.innerHTML = '';
+    if (!coms || coms.length === 0) {
+      ul.innerHTML = '<li class="t">Sin comentarios.</li>';
+      return;
+    }
+    coms.forEach((c) => {
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <div class="t">${fmtFecha(c.fecha)} · ${escapeHtml(c.autor || 'edwin')}</div>
+        <p class="texto">${escapeHtml(c.texto || '')}</p>
+      `;
+      ul.appendChild(li);
+    });
+  }
+
+  async function anadirComentario() {
+    if (!CACHE_INC) return;
+    const ta = $('com-texto');
+    const texto = ta.value.trim();
+    const errBox = $('com-error');
+    errBox.classList.add('hidden');
+
+    if (texto.length < 3) {
+      errBox.textContent = 'Texto obligatorio (mínimo 3 caracteres).';
+      errBox.classList.remove('hidden');
+      return;
+    }
+
+    const btn = $('btn-add-comentario');
+    btn.disabled = true;
+    const prev = btn.textContent;
+    btn.innerHTML = '<span class="spinner"></span>Añadiendo…';
+
+    const r = await apiPost(cfg.ENDPOINTS.COMENTARIO_CREATE, { texto }, { id: CACHE_INC.id_incidencia });
+
+    btn.disabled = false;
+    btn.textContent = prev;
+
+    if (r.ok && r.data && r.data.success && r.data.comentario) {
+      ta.value = '';
+      // Append optimista (evita un GET extra)
+      CACHE_COM.push(r.data.comentario);
+      rellenarComentarios(CACHE_COM);
+      toast('Comentario añadido', 'success');
+    } else {
+      errBox.textContent = (r.data && r.data.detalle) || ('HTTP ' + r.status);
+      errBox.classList.remove('hidden');
+      toast('Error al añadir comentario', 'error');
+    }
   }
 
   function rellenarHistorial(hist) {
@@ -527,6 +583,9 @@
     $('btn-cancelar-incidencia').addEventListener('click', abrirModalCancelar);
     $('btn-modal-volver').addEventListener('click', cerrarModalCancelar);
     $('btn-modal-confirmar').addEventListener('click', confirmarCancelacion);
+
+    // Comentarios
+    $('btn-add-comentario').addEventListener('click', anadirComentario);
 
     // Hash routing
     window.addEventListener('hashchange', onHashChange);

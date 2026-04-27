@@ -200,6 +200,18 @@
       </div>
     </form>
 
+    <!-- Comentarios cronológicos -->
+    <div class="card">
+      <h3>Comentarios</h3>
+      <ul id="lista-comentarios" class="comentarios"></ul>
+      <div class="field" style="margin-top:0.5rem;">
+        <label for="com-texto">Añadir comentario</label>
+        <textarea id="com-texto" rows="2" maxlength="500" placeholder="Notas, llamadas, lo que sea relevante…"></textarea>
+      </div>
+      <div id="com-error" class="error-banner hidden" role="alert"></div>
+      <button type="button" class="secondary" id="btn-add-comentario">Añadir comentario</button>
+    </div>
+
     <!-- Histórico de cambios -->
     <div class="card">
       <h3>Histórico</h3>

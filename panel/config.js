@@ -13,7 +13,8 @@ window.IMAR_PANEL_CONFIG = {
     GET:         '/webhook/imar/panel/incidencia',     // ?id=
     UPDATE:      '/webhook/imar/panel/incidencia',     // PATCH ?id=
     CANCEL:      '/webhook/imar/panel/incidencia/cancel', // POST ?id=
+    COMENTARIO_CREATE: '/webhook/imar/panel/comentario',  // POST ?id=
   },
   LS_TOKEN_KEY: 'imar_panel_token',
-  VERSION: '0.1.0',
+  VERSION: '0.2.0',
 };

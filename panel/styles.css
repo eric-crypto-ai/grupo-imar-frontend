@@ -339,6 +339,28 @@ button.back {
   margin-right: 0.3rem;
 }
 
+/* === Comentarios === */
+.comentarios { list-style: none; padding: 0; margin: 0 0 0.5rem; }
+.comentarios li {
+  padding: 0.6rem 0.7rem;
+  margin-bottom: 0.5rem;
+  background: #f7f8fa;
+  border-left: 3px solid var(--color-primary, #0d47a1);
+  border-radius: 4px;
+  font-size: 0.92rem;
+}
+.comentarios li:last-child { margin-bottom: 0; }
+.comentarios .t {
+  color: var(--color-text-soft);
+  font-size: 0.78rem;
+  margin-bottom: 0.2rem;
+}
+.comentarios .texto {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
 /* === Modal === */
 .modal {
   position: fixed;
