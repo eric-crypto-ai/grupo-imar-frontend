@@ -17,5 +17,5 @@ window.IMAR_PANEL_CONFIG = {
     INCIDENCIA_CREATE: '/webhook/imar/panel/incidencia/create', // POST manual desde panel
   },
   LS_TOKEN_KEY: 'imar_panel_token',
-  VERSION: '0.2.0',
+  VERSION: '0.2.1',
 };
