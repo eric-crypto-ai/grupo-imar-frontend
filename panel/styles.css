@@ -339,6 +339,27 @@ button.back {
   margin-right: 0.3rem;
 }
 
+/* === FAB nueva incidencia === */
+.fab {
+  position: fixed;
+  right: 1.2rem;
+  bottom: 1.2rem;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-primary, #0d47a1);
+  color: #fff;
+  border: 0;
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1;
+  box-shadow: 0 6px 16px rgba(13,71,161,0.35);
+  cursor: pointer;
+  z-index: 50;
+}
+.fab:active { transform: translateY(1px); }
+.fab:focus-visible { outline: 3px solid #ffd54f; outline-offset: 3px; }
+
 /* === Comentarios === */
 .comentarios { list-style: none; padding: 0; margin: 0 0 0.5rem; }
 .comentarios li {

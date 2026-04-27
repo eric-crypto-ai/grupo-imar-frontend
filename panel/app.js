@@ -39,7 +39,7 @@
   function show(id) { $(id).classList.remove('hidden'); }
   function hide(id) { $(id).classList.add('hidden'); }
 
-  const SCREENS = ['screen-loading', 'screen-auth-error', 'screen-lista', 'screen-ficha'];
+  const SCREENS = ['screen-loading', 'screen-auth-error', 'screen-lista', 'screen-ficha', 'screen-nueva'];
   function showScreen(id) {
     SCREENS.forEach((s) => (s === id ? show(s) : hide(s)));
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -149,6 +149,7 @@
   // ---------- Router ----------
   function parseHash() {
     const h = (window.location.hash || '#/lista').slice(1);
+    if (h === '/nueva') return { route: 'nueva' };
     const m = h.match(/^\/incidencia\/([^/?]+)$/);
     if (m) return { route: 'ficha', id: decodeURIComponent(m[1]) };
     return { route: 'lista' };
@@ -160,6 +161,8 @@
     const r = parseHash();
     if (r.route === 'ficha') {
       await renderFicha(r.id);
+    } else if (r.route === 'nueva') {
+      renderNueva();
     } else {
       await renderLista();
     }
@@ -507,6 +510,101 @@
     }
   }
 
+  // ---------- Nueva incidencia (manual desde panel) ----------
+  function renderNueva() {
+    showScreen('screen-nueva');
+
+    poblarSelect($('nueva-categoria'), ENUMS.categorias, 'Preventivo');
+    poblarSelect($('nueva-tipo_fallo'), ENUMS.tipos_fallo, '', '— sin asignar —');
+    poblarSelect($('nueva-prioridad'), ENUMS.prioridades, '', '— se sugiere automática —');
+
+    // Máquinas
+    const selM = $('nueva-id_maquina');
+    selM.innerHTML = '<option value="">— elige máquina —</option>';
+    (CATALOGOS.maquinas || []).forEach((m) => {
+      const o = document.createElement('option');
+      o.value = m.id_maquina;
+      o.textContent = m.nombre + (m.departamento ? ' (' + m.departamento + ')' : '');
+      selM.appendChild(o);
+    });
+
+    // Operarios
+    const selO = $('nueva-id_operario');
+    selO.innerHTML = '<option value="">— elige operario —</option>';
+    (CATALOGOS.operarios || []).forEach((o) => {
+      const op = document.createElement('option');
+      op.value = o.id_operario;
+      op.textContent = o.nombre + (o.departamento_habitual ? ' (' + o.departamento_habitual + ')' : '');
+      selO.appendChild(op);
+    });
+
+    // Proveedores
+    const selP = $('nueva-proveedor_id');
+    selP.innerHTML = '<option value="">— sin asignar —</option>';
+    (CATALOGOS.proveedores || []).forEach((p) => {
+      const op = document.createElement('option');
+      op.value = p.id_proveedor;
+      op.textContent = p.nombre + (p.especialidad ? ' — ' + p.especialidad : '');
+      selP.appendChild(op);
+    });
+
+    // Reset toggles + form
+    $('nueva-maquina_parada').value = 'No';
+    qsa('button[data-name="nueva-maquina_parada"]').forEach((b) =>
+      b.setAttribute('aria-pressed', b.dataset.value === 'No' ? 'true' : 'false'));
+    $('nueva-origen_intervencion').value = 'Interno';
+    qsa('button[data-name="nueva-origen_intervencion"]').forEach((b) =>
+      b.setAttribute('aria-pressed', b.dataset.value === 'Interno' ? 'true' : 'false'));
+    $('campo-nueva-proveedor').style.display = 'none';
+    $('nueva-descripcion').value = '';
+    $('nueva-observaciones').value = '';
+    hide('nueva-error');
+  }
+
+  async function crearNueva(e) {
+    e.preventDefault();
+    const errBox = $('nueva-error');
+    errBox.classList.add('hidden');
+
+    const body = {
+      id_maquina: $('nueva-id_maquina').value,
+      id_operario: $('nueva-id_operario').value,
+      descripcion: $('nueva-descripcion').value.trim(),
+      maquina_parada: $('nueva-maquina_parada').value,
+      categoria: $('nueva-categoria').value,
+      tipo_fallo: $('nueva-tipo_fallo').value,
+      prioridad: $('nueva-prioridad').value,
+      origen_intervencion: $('nueva-origen_intervencion').value,
+      observaciones: $('nueva-observaciones').value.trim(),
+    };
+    if (body.origen_intervencion === 'Externo') {
+      body.proveedor_id = $('nueva-proveedor_id').value;
+    }
+
+    if (!body.id_maquina) { errBox.textContent = 'Elige una máquina.'; show('nueva-error'); return; }
+    if (!body.id_operario) { errBox.textContent = 'Elige un operario.'; show('nueva-error'); return; }
+    if (!body.descripcion || body.descripcion.length < 3) { errBox.textContent = 'Descripción obligatoria (mínimo 3 caracteres).'; show('nueva-error'); return; }
+
+    const btn = $('btn-crear-nueva');
+    btn.disabled = true;
+    const prev = btn.textContent;
+    btn.innerHTML = '<span class="spinner"></span>Creando…';
+
+    const r = await apiPost(cfg.ENDPOINTS.INCIDENCIA_CREATE, body);
+
+    btn.disabled = false;
+    btn.textContent = prev;
+
+    if (r.ok && r.data && r.data.success && r.data.id_incidencia) {
+      toast('Creada: ' + r.data.id_incidencia, 'success');
+      navigate('/incidencia/' + encodeURIComponent(r.data.id_incidencia));
+    } else {
+      errBox.textContent = (r.data && r.data.detalle) || ('HTTP ' + r.status);
+      show('nueva-error');
+      toast('Error al crear', 'error');
+    }
+  }
+
   // ---------- Cancelación ----------
   function abrirModalCancelar() {
     $('modal-motivo').value = '';
@@ -564,15 +662,20 @@
     // Volver a lista
     $('btn-volver-lista').addEventListener('click', () => navigate('/lista'));
 
-    // Toggles (origen + solvendo)
+    // Toggles (origen + solvendo en ficha; maquina_parada + origen en nueva)
     qsa('.toggle button[data-name][data-value]').forEach((b) => {
       b.addEventListener('click', () => {
         const name = b.dataset.name;
-        // Desmarcar los hermanos del mismo grupo
         qsa('.toggle button[data-name="' + name + '"]').forEach((x) => x.setAttribute('aria-pressed', 'false'));
         b.setAttribute('aria-pressed', 'true');
-        $('ed-' + name).value = b.dataset.value;
+        // input hidden puede tener id = name (toggles "nueva-*") o id = 'ed-' + name (toggles ficha)
+        const target = $(name) || $('ed-' + name);
+        if (target) target.value = b.dataset.value;
+
         if (name === 'origen_intervencion') actualizarVisibilidadProveedor();
+        if (name === 'nueva-origen_intervencion') {
+          $('campo-nueva-proveedor').style.display = b.dataset.value === 'Externo' ? '' : 'none';
+        }
       });
     });
 
@@ -586,6 +689,12 @@
 
     // Comentarios
     $('btn-add-comentario').addEventListener('click', anadirComentario);
+
+    // Nueva incidencia
+    $('fab-nueva').addEventListener('click', () => navigate('/nueva'));
+    $('btn-volver-lista-nueva').addEventListener('click', () => navigate('/lista'));
+    $('btn-cancelar-nueva').addEventListener('click', () => navigate('/lista'));
+    $('form-nueva').addEventListener('submit', crearNueva);
 
     // Hash routing
     window.addEventListener('hashchange', onHashChange);

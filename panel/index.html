@@ -55,6 +55,97 @@
     <div id="lista-incidencias" class="lista-incidencias"></div>
 
     <p id="lista-vacia" class="empty hidden">No hay incidencias con estos filtros.</p>
+
+    <button type="button" id="fab-nueva" class="fab" aria-label="Nueva incidencia">+</button>
+  </section>
+
+  <!-- ========== NUEVA INCIDENCIA (manual desde panel) ========== -->
+  <section id="screen-nueva" class="hidden">
+    <button type="button" class="back" id="btn-volver-lista-nueva">← Lista</button>
+
+    <div class="card">
+      <h2>Nueva incidencia</h2>
+      <p class="meta">Crear manualmente desde el panel (preventivos, observaciones de revisión, etc.).</p>
+    </div>
+
+    <form id="form-nueva" class="card">
+      <h3>Datos básicos</h3>
+
+      <div class="field">
+        <label for="nueva-categoria">Categoría</label>
+        <select id="nueva-categoria" name="categoria"></select>
+      </div>
+
+      <div class="field">
+        <label for="nueva-id_maquina">Máquina <span class="required">*</span></label>
+        <select id="nueva-id_maquina" name="id_maquina" required></select>
+      </div>
+
+      <div class="field">
+        <label for="nueva-id_operario">Operario asignado <span class="required">*</span></label>
+        <select id="nueva-id_operario" name="id_operario" required></select>
+      </div>
+
+      <div class="field">
+        <label for="nueva-descripcion">Descripción <span class="required">*</span></label>
+        <textarea id="nueva-descripcion" name="descripcion" rows="3" maxlength="500" required placeholder="Qué hay que hacer / qué se ha detectado…"></textarea>
+      </div>
+
+      <div class="field">
+        <label>¿Máquina parada? <span class="required">*</span></label>
+        <div class="toggle">
+          <button type="button" data-name="nueva-maquina_parada" data-value="No" aria-pressed="true">No</button>
+          <button type="button" data-name="nueva-maquina_parada" data-value="Sí" aria-pressed="false">Sí</button>
+        </div>
+        <input type="hidden" id="nueva-maquina_parada" name="maquina_parada" value="No">
+      </div>
+
+      <h3 style="margin-top:1.5rem;">Clasificación</h3>
+
+      <div class="field">
+        <label for="nueva-tipo_fallo">Tipo de fallo</label>
+        <select id="nueva-tipo_fallo" name="tipo_fallo">
+          <option value="">— sin asignar —</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="nueva-prioridad">Prioridad</label>
+        <select id="nueva-prioridad" name="prioridad">
+          <option value="">— se sugiere automática —</option>
+        </select>
+      </div>
+
+      <h3 style="margin-top:1.5rem;">Asignación</h3>
+
+      <div class="field">
+        <label>Origen de la intervención</label>
+        <div class="toggle">
+          <button type="button" data-name="nueva-origen_intervencion" data-value="Interno" aria-pressed="true">Interno</button>
+          <button type="button" data-name="nueva-origen_intervencion" data-value="Externo" aria-pressed="false">Externo</button>
+        </div>
+        <input type="hidden" id="nueva-origen_intervencion" name="origen_intervencion" value="Interno">
+      </div>
+
+      <div class="field" id="campo-nueva-proveedor" style="display:none;">
+        <label for="nueva-proveedor_id">Proveedor</label>
+        <select id="nueva-proveedor_id" name="proveedor_id">
+          <option value="">— sin asignar —</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="nueva-observaciones">Observaciones</label>
+        <textarea id="nueva-observaciones" name="observaciones" rows="2" maxlength="500"></textarea>
+      </div>
+
+      <div id="nueva-error" class="error-banner hidden" role="alert"></div>
+
+      <div class="acciones-ficha">
+        <button type="submit" class="primary" id="btn-crear-nueva">Crear incidencia</button>
+        <button type="button" class="secondary" id="btn-cancelar-nueva">Volver</button>
+      </div>
+    </form>
   </section>
 
   <!-- ========== FICHA ========== -->

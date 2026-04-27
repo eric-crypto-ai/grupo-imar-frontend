@@ -14,6 +14,7 @@ window.IMAR_PANEL_CONFIG = {
     UPDATE:      '/webhook/imar/panel/incidencia',     // PATCH ?id=
     CANCEL:      '/webhook/imar/panel/incidencia/cancel', // POST ?id=
     COMENTARIO_CREATE: '/webhook/imar/panel/comentario',  // POST ?id=
+    INCIDENCIA_CREATE: '/webhook/imar/panel/incidencia/create', // POST manual desde panel
   },
   LS_TOKEN_KEY: 'imar_panel_token',
   VERSION: '0.2.0',
