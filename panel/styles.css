@@ -661,3 +661,15 @@ footer {
 /* === Enlaces de proveedor (tel/email) === */
 #proveedor-detalle a { color: var(--color-primary); text-decoration: none; font-weight: 600; }
 #proveedor-detalle a:hover { text-decoration: underline; }
+
+/* === Acciones stock (F6-B) === */
+.acciones-stock {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+@media (max-width: 380px) {
+  .acciones-stock { grid-template-columns: 1fr; }
+}
+.acciones-stock button { width: 100%; }

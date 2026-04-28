@@ -17,9 +17,18 @@
   let CACHE_COM   = null;      // comentarios de la incidencia actual
   let CACHE_PIEZAS_LISTA = null;  // último listado de piezas (F6-A)
   let CACHE_PIEZA = null;         // pieza actual en ficha (F6-A)
+  let MODAL_MOV_CTX = null;       // contexto al abrir modal: { id_pieza, source: 'pieza'|'incidencia', id_incidencia? }
 
   const FILTRO_ACTUAL = { kind: 'activas', q: '' };
   const FILTRO_PIEZAS = { q: '', familia: '', id_maquina: '', stock_bajo: false };
+
+  // F6-B: motivos válidos por tipo de movimiento.
+  const MOTIVOS_POR_TIPO = {
+    'Entrada':    ['Compra','Devolución_proveedor','Inventario','Otro'],
+    'Salida':     ['Consumo','Roto','Inventario','Otro'],
+    'Ajuste':     ['Inventario','Otro'],
+    'Devolución': ['Devolución_proveedor','Otro'],
+  };
 
   // Listas de enums (las leo de catálogos que vienen del workflow CATALOGOS)
   // Nota: CATALOGOS no incluye estos enums. Los voy a leer del Sheet config con
@@ -176,6 +185,7 @@
     const h = (window.location.hash || '#/lista').slice(1);
     if (h === '/nueva') return { route: 'nueva' };
     if (h === '/piezas') return { route: 'piezas' };
+    if (h === '/pedidos-pieza') return { route: 'pedidos' };
     const mInc = h.match(/^\/incidencia\/([^/?]+)$/);
     if (mInc) return { route: 'ficha', id: decodeURIComponent(mInc[1]) };
     const mPz = h.match(/^\/pieza\/([^/?]+)$/);
@@ -193,6 +203,12 @@
       renderNueva();
     } else if (r.route === 'piezas') {
       await renderPiezas();
+    } else if (r.route === 'pedidos') {
+      // Vista #/pedidos-pieza = piezas con filtro stock_bajo forzado.
+      FILTRO_PIEZAS.stock_bajo = true;
+      await renderPiezas();
+      // Marcar el toggle UI también para que Edwin vea el filtro activo.
+      const cb = $('piezas-stock-bajo'); if (cb) cb.checked = true;
     } else if (r.route === 'pieza') {
       await renderPieza(r.id);
     } else {
@@ -278,6 +294,7 @@
     rellenarFicha(CACHE_INC);
     rellenarHistorial(CACHE_HIST);
     rellenarComentarios(CACHE_COM);
+    await rellenarPiezasConsumidas();
     showScreen('screen-ficha');
   }
 
@@ -868,6 +885,306 @@
     });
   }
 
+  // ---------- Movimientos de stock (F6-B) ----------
+
+  function poblarMotivos(tipo, current) {
+    const sel = $('mov-motivo');
+    const motivos = MOTIVOS_POR_TIPO[tipo] || [];
+    sel.innerHTML = '';
+    motivos.forEach((m) => {
+      const o = document.createElement('option');
+      o.value = m; o.textContent = m;
+      if (m === current) o.selected = true;
+      sel.appendChild(o);
+    });
+    if (!motivos.includes(current)) sel.selectedIndex = 0;
+    actualizarVisibilidadCamposMov();
+  }
+
+  function actualizarVisibilidadCamposMov() {
+    const tipo = $('mov-tipo').value;
+    const motivo = $('mov-motivo').value;
+    // Incidencia visible si motivo=Consumo (Salida).
+    const showInc = (tipo === 'Salida' && motivo === 'Consumo');
+    $('campo-mov-incidencia').style.display = showInc ? '' : 'none';
+    $('mov-incidencia-hint').textContent = showInc ? 'Obligatorio.' : '';
+    // Proveedor visible si Compra o Devolución_proveedor.
+    const showProv = (motivo === 'Compra' || motivo === 'Devolución_proveedor');
+    $('campo-mov-proveedor').style.display = showProv ? '' : 'none';
+    // Precio visible si Compra.
+    $('campo-mov-precio').style.display = (motivo === 'Compra') ? '' : 'none';
+    // Notas hint.
+    $('mov-notas-hint').textContent = (motivo === 'Otro') ? 'Obligatorio (motivo Otro).' : 'Opcional.';
+  }
+
+  async function abrirModalMovimiento(ctx) {
+    // ctx: { id_pieza, nombre_pieza, source: 'pieza'|'incidencia', id_incidencia?, preset_tipo?, preset_motivo?, preset_cantidad? }
+    if (!ctx.id_pieza) { toast('Falta id_pieza', 'error'); return; }
+    MODAL_MOV_CTX = ctx;
+
+    // Header
+    $('modal-mov-pieza-nombre').textContent = ctx.nombre_pieza || ctx.id_pieza;
+
+    // Tipo + cantidad
+    $('mov-tipo').value = ctx.preset_tipo || 'Salida';
+    $('mov-cantidad').value = ctx.preset_cantidad || 1;
+
+    // Motivos según tipo
+    poblarMotivos($('mov-tipo').value, ctx.preset_motivo || (MOTIVOS_POR_TIPO[$('mov-tipo').value] || ['Otro'])[0]);
+
+    // Poblar selector incidencias activas
+    const selInc = $('mov-id_incidencia');
+    selInc.innerHTML = '<option value="">— sin asignar —</option>';
+    if (CACHE_LISTA && CACHE_LISTA.length) {
+      CACHE_LISTA
+        .filter((it) => !['Cancelada','Finalizada'].includes(it.estado))
+        .forEach((it) => {
+          const o = document.createElement('option');
+          o.value = it.id_incidencia;
+          const maq = (lookupMaquina(it.id_maquina) || {}).nombre || it.id_maquina;
+          o.textContent = `${it.id_incidencia} · ${maq}`;
+          if (ctx.id_incidencia && it.id_incidencia === ctx.id_incidencia) o.selected = true;
+          selInc.appendChild(o);
+        });
+    }
+    // Si la incidencia preset no está en la lista (ej. cargada solo en ficha), añádela manualmente.
+    if (ctx.id_incidencia && !Array.from(selInc.options).find((o) => o.value === ctx.id_incidencia)) {
+      const o = document.createElement('option');
+      o.value = ctx.id_incidencia; o.textContent = ctx.id_incidencia + ' (actual)';
+      o.selected = true;
+      selInc.appendChild(o);
+    }
+
+    // Poblar selector proveedores
+    const selProv = $('mov-id_proveedor');
+    selProv.innerHTML = '<option value="">— sin asignar —</option>';
+    (CATALOGOS.proveedores || []).forEach((p) => {
+      const o = document.createElement('option');
+      o.value = p.id_proveedor;
+      o.textContent = p.nombre + (p.especialidad ? ' — ' + p.especialidad : '');
+      selProv.appendChild(o);
+    });
+
+    // Reset campos
+    $('mov-precio_total').value = '';
+    $('mov-notas').value = '';
+    $('modal-mov-error').classList.add('hidden');
+
+    actualizarVisibilidadCamposMov();
+    show('modal-movimiento');
+  }
+
+  function cerrarModalMovimiento() { hide('modal-movimiento'); MODAL_MOV_CTX = null; }
+
+  async function confirmarMovimiento(forceNegative) {
+    const errBox = $('modal-mov-error');
+    errBox.classList.add('hidden');
+
+    const tipo = $('mov-tipo').value;
+    const cantidad = parseInt($('mov-cantidad').value, 10);
+    const motivo = $('mov-motivo').value;
+    const id_incidencia = $('mov-id_incidencia').value;
+    const id_proveedor = $('mov-id_proveedor').value;
+    const precio_total = $('mov-precio_total').value;
+    const notas = $('mov-notas').value.trim();
+
+    // Validación cliente (refleja backend)
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      errBox.textContent = 'Cantidad debe ser un número entero positivo.';
+      errBox.classList.remove('hidden'); return;
+    }
+    if (motivo === 'Otro' && notas.length < 3) {
+      errBox.textContent = 'Motivo "Otro" exige notas (mínimo 3 caracteres).';
+      errBox.classList.remove('hidden'); return;
+    }
+    if (tipo === 'Salida' && motivo === 'Consumo' && !id_incidencia) {
+      errBox.textContent = 'Selecciona una incidencia (obligatoria para Salida + Consumo).';
+      errBox.classList.remove('hidden'); return;
+    }
+
+    const body = {
+      id_pieza: MODAL_MOV_CTX.id_pieza,
+      tipo, cantidad, motivo,
+    };
+    if (id_incidencia) body.id_incidencia = id_incidencia;
+    if (id_proveedor)  body.id_proveedor  = id_proveedor;
+    if (precio_total)  body.precio_total  = parseFloat(precio_total);
+    if (notas)         body.notas         = notas;
+    if (forceNegative) body.force_negative = true;
+
+    const btn = $('btn-mov-confirmar');
+    btn.disabled = true;
+    const prev = btn.textContent;
+    btn.innerHTML = '<span class="spinner"></span>Registrando…';
+
+    const r = await apiPost(cfg.ENDPOINTS.PIEZA_MOVIMIENTO, body);
+
+    btn.disabled = false;
+    btn.textContent = prev;
+
+    if (r.ok && r.data && r.data.success) {
+      cerrarModalMovimiento();
+      toast(`Movimiento registrado · stock ${r.data.stock_actual_antes} → ${r.data.stock_actual_nuevo}`, 'success');
+      // Refrescar pantalla activa para reflejar el cambio
+      const route = parseHash();
+      if (route.route === 'pieza')      await renderPieza(MODAL_MOV_CTX.id_pieza);
+      else if (route.route === 'ficha') await renderFicha(route.id);
+      else if (route.route === 'piezas' || route.route === 'pedidos') await renderPiezas();
+    } else if (r.status === 409 && r.data && r.data.error === 'stock_insuficiente') {
+      // D-MOV-1: confirmación de stock negativo
+      const ok = window.confirm(`⚠ Esto va a dejar el stock en negativo: actual ${r.data.stock_actual}, sales ${r.data.cantidad}, queda ${r.data.stock_actual - r.data.cantidad}.\n\n¿Confirmar igualmente?`);
+      if (ok) return confirmarMovimiento(true);
+    } else if (r.status === 400) {
+      errBox.textContent = (r.data && r.data.detalle) || 'Datos inválidos';
+      errBox.classList.remove('hidden');
+    } else if (r.status === 404) {
+      errBox.textContent = (r.data && r.data.detalle) || 'No encontrado';
+      errBox.classList.remove('hidden');
+    } else {
+      errBox.textContent = 'Error: HTTP ' + r.status;
+      errBox.classList.remove('hidden');
+    }
+  }
+
+  // ---------- Piezas consumidas en ficha de incidencia (F6-B) ----------
+
+  async function rellenarPiezasConsumidas() {
+    if (!CACHE_INC) return;
+    const ul = $('lista-piezas-consumidas');
+    ul.innerHTML = '<li class="t">Cargando…</li>';
+
+    // Estrategia simple: pedimos /piezas para tener el catálogo + filtramos
+    // localmente movimientos con id_incidencia===CACHE_INC.id_incidencia.
+    // Como no tenemos endpoint específico de movimientos por incidencia, re-leo
+    // cada pieza con uso conocido — pero sería N requests. Mejor: pedir todas las
+    // piezas con stock_movimientos y filtrar. Aprovecho que /piezas no devuelve
+    // movimientos pero sí num_usos. Para movimientos exactos por incidencia
+    // necesitaremos un endpoint dedicado en F6-B+ — por ahora: dejamos
+    // PLACEHOLDER que se rellena al añadir y al refrescar la ficha tras crear.
+    // Lo que sí podemos mostrar: pieza_bloqueante_id si existe (caso bloqueada).
+
+    if (CACHE_INC.pieza_bloqueante_id) {
+      ul.innerHTML = '';
+      const li = document.createElement('li');
+      li.style.background = '#fff8e1';
+      li.innerHTML = `
+        <div><span class="uso-maquina">⏸ Bloqueada por pieza:</span></div>
+        <div class="uso-detalle">
+          <a href="#/pieza/${escapeHtml(CACHE_INC.pieza_bloqueante_id)}">${escapeHtml(CACHE_INC.pieza_bloqueante_id)}</a>
+          (esperando recepción · stock no se ha movido)
+        </div>
+      `;
+      ul.appendChild(li);
+    } else {
+      ul.innerHTML = '';
+    }
+
+    // Append: lista de movimientos consumidos. Sin endpoint dedicado, hacemos
+    // request al panel/pieza?id=X para cada pieza única vinculada — pero como
+    // no sabemos cuáles son sin un endpoint, mostramos sólo lo que tengamos.
+    // Por ahora dejamos la lista vacía y dependemos de que el usuario refresque
+    // tras añadir un movimiento. F6-B+ podría añadir un endpoint
+    // /panel/incidencia/movimientos?id= que devuelva los movimientos enlazados.
+    if (ul.children.length === 0) {
+      ul.innerHTML = '<li class="t">Sin piezas consumidas registradas todavía. Pulsa "Añadir pieza consumida" para anotar una.</li>';
+    }
+
+    // Info banner si está bloqueada
+    const info = $('ficha-pieza-bloqueante-info');
+    if (CACHE_INC.pieza_bloqueante_id) {
+      info.classList.remove('hidden');
+      info.textContent = 'Esta incidencia está bloqueada esperando la pieza ' + CACHE_INC.pieza_bloqueante_id + '.';
+    } else {
+      info.classList.add('hidden');
+    }
+  }
+
+  async function abrirModalAddPiezaConsumida() {
+    if (!CACHE_INC) return;
+    // Selector de pieza — pedimos /piezas (cache si existe, si no carga).
+    // Para simplicidad, pedimos siempre.
+    const r = await apiGet(cfg.ENDPOINTS.PIEZAS_LIST);
+    if (!r.ok) { toast('No se pudo cargar piezas', 'error'); return; }
+    const piezas = r.data.items || [];
+    if (piezas.length === 0) { toast('Sin catálogo de piezas', 'error'); return; }
+
+    // Promp simplificado: pedimos id_pieza por prompt() y delegamos al modal completo
+    const ref = window.prompt('Escribe la referencia de la pieza (ej. 6205-2RS) o el id_pieza (PZ-2026-NNNN):');
+    if (!ref) return;
+    const refUp = ref.trim().toUpperCase();
+    const match = piezas.find((p) =>
+      (p.id_pieza || '').toUpperCase() === refUp ||
+      (p.referencia_fabricante || '').toUpperCase() === refUp
+    );
+    if (!match) { toast('Pieza no encontrada: ' + ref, 'error'); return; }
+
+    abrirModalMovimiento({
+      id_pieza: match.id_pieza,
+      nombre_pieza: `${match.referencia_fabricante} · ${match.descripcion || ''}`,
+      source: 'incidencia',
+      id_incidencia: CACHE_INC.id_incidencia,
+      preset_tipo: 'Salida',
+      preset_motivo: 'Consumo',
+      preset_cantidad: 1,
+    });
+  }
+
+  function abrirModalBloquearPieza() {
+    if (!CACHE_INC) return;
+    // Cargar selector de piezas
+    apiGet(cfg.ENDPOINTS.PIEZAS_LIST).then((r) => {
+      if (!r.ok) { toast('No se pudo cargar piezas', 'error'); return; }
+      const sel = $('blq-id_pieza');
+      sel.innerHTML = '<option value="">— elige pieza —</option>';
+      (r.data.items || []).forEach((p) => {
+        const o = document.createElement('option');
+        o.value = p.id_pieza;
+        o.textContent = `${p.referencia_fabricante} · ${p.descripcion || ''} (stock ${p.stock_actual})`;
+        sel.appendChild(o);
+      });
+      $('blq-nota').value = '';
+      $('modal-blq-error').classList.add('hidden');
+      show('modal-bloquear-pieza');
+    });
+  }
+
+  function cerrarModalBloquearPieza() { hide('modal-bloquear-pieza'); }
+
+  async function confirmarBloquearPieza() {
+    const errBox = $('modal-blq-error');
+    errBox.classList.add('hidden');
+
+    const id_pieza = $('blq-id_pieza').value;
+    const nota = $('blq-nota').value.trim();
+    if (!id_pieza) {
+      errBox.textContent = 'Elige una pieza.';
+      errBox.classList.remove('hidden'); return;
+    }
+    const cambios = {
+      pieza_bloqueante_id: id_pieza,
+      motivo_pausa: 'pieza' + (nota ? ': ' + nota : ''),
+      estado: 'Pausada',
+    };
+
+    const btn = $('btn-blq-confirmar');
+    btn.disabled = true;
+    const prev = btn.textContent;
+    btn.innerHTML = '<span class="spinner"></span>Marcando…';
+
+    const r = await apiPatch(cfg.ENDPOINTS.UPDATE, cambios, { id: CACHE_INC.id_incidencia });
+    btn.disabled = false;
+    btn.textContent = prev;
+
+    if (r.ok && r.data && r.data.success) {
+      cerrarModalBloquearPieza();
+      toast('Incidencia marcada como bloqueada por pieza ' + id_pieza, 'success');
+      await renderFicha(CACHE_INC.id_incidencia);
+    } else {
+      errBox.textContent = (r.data && r.data.detalle) || ('HTTP ' + r.status);
+      errBox.classList.remove('hidden');
+    }
+  }
+
   // ---------- Cancelación ----------
   function abrirModalCancelar() {
     $('modal-motivo').value = '';
@@ -988,6 +1305,45 @@
 
     // Pieza — volver
     $('btn-volver-piezas').addEventListener('click', () => navigate('/piezas'));
+
+    // Pieza — movimientos (F6-B)
+    $('btn-mov-rapido-menos').addEventListener('click', () => {
+      if (!CACHE_PIEZA || !CACHE_PIEZA.pieza) { toast('Carga una pieza primero', 'error'); return; }
+      const p = CACHE_PIEZA.pieza;
+      abrirModalMovimiento({
+        id_pieza: p.id_pieza,
+        nombre_pieza: `${p.referencia_fabricante}${p.variante ? ' ' + p.variante : ''} · ${p.descripcion || ''}`,
+        source: 'pieza',
+        preset_tipo: 'Salida',
+        preset_motivo: 'Consumo',
+        preset_cantidad: 1,
+      });
+    });
+    $('btn-mov-completo').addEventListener('click', () => {
+      if (!CACHE_PIEZA || !CACHE_PIEZA.pieza) { toast('Carga una pieza primero', 'error'); return; }
+      const p = CACHE_PIEZA.pieza;
+      abrirModalMovimiento({
+        id_pieza: p.id_pieza,
+        nombre_pieza: `${p.referencia_fabricante}${p.variante ? ' ' + p.variante : ''} · ${p.descripcion || ''}`,
+        source: 'pieza',
+      });
+    });
+
+    // Modal movimiento — interacciones
+    $('mov-tipo').addEventListener('change', () => {
+      poblarMotivos($('mov-tipo').value, '');
+    });
+    $('mov-motivo').addEventListener('change', actualizarVisibilidadCamposMov);
+    $('btn-mov-volver').addEventListener('click', cerrarModalMovimiento);
+    $('btn-mov-confirmar').addEventListener('click', () => confirmarMovimiento(false));
+
+    // Ficha incidencia — piezas consumidas (F6-B)
+    $('btn-add-pieza-consumida').addEventListener('click', abrirModalAddPiezaConsumida);
+    $('btn-marcar-bloqueada-pieza').addEventListener('click', abrirModalBloquearPieza);
+
+    // Modal bloquear por pieza
+    $('btn-blq-volver').addEventListener('click', cerrarModalBloquearPieza);
+    $('btn-blq-confirmar').addEventListener('click', confirmarBloquearPieza);
 
     // Hash routing
     window.addEventListener('hashchange', onHashChange);

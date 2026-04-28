@@ -309,6 +309,17 @@
       <button type="button" class="secondary" id="btn-add-comentario">Añadir comentario</button>
     </div>
 
+    <!-- Piezas consumidas en esta incidencia (F6-B) -->
+    <div class="card">
+      <h3>Piezas consumidas</h3>
+      <p id="ficha-pieza-bloqueante-info" class="meta hidden"></p>
+      <ul id="lista-piezas-consumidas" class="usos"></ul>
+      <div class="acciones-stock" style="margin-top:0.7rem;">
+        <button type="button" class="secondary" id="btn-add-pieza-consumida">Añadir pieza consumida</button>
+        <button type="button" class="secondary" id="btn-marcar-bloqueada-pieza">Marcar bloqueada por pieza</button>
+      </div>
+    </div>
+
     <!-- Histórico de cambios -->
     <div class="card">
       <h3>Histórico</h3>
@@ -367,6 +378,11 @@
       <div id="pieza-alerta-stock" class="error-banner hidden" style="margin-top:0.7rem;">
         ⚠ Stock por debajo del mínimo. Considerar reposición.
       </div>
+
+      <div class="acciones-stock">
+        <button type="button" class="secondary" id="btn-mov-rapido-menos">− 1 ud (consumo)</button>
+        <button type="button" class="secondary" id="btn-mov-completo">Registrar movimiento…</button>
+      </div>
     </div>
 
     <!-- Datos -->
@@ -411,6 +427,98 @@
       <ul id="lista-movimientos" class="historial"></ul>
     </div>
   </section>
+
+  <!-- ========== MODAL MOVIMIENTO DE STOCK (F6-B) ========== -->
+  <div id="modal-movimiento" class="modal hidden" role="dialog" aria-labelledby="modal-mov-title">
+    <div class="modal-card">
+      <h3 id="modal-mov-title">Registrar movimiento de stock</h3>
+      <p class="meta" id="modal-mov-pieza-nombre">·</p>
+
+      <div class="field">
+        <label for="mov-tipo">Tipo de movimiento</label>
+        <select id="mov-tipo">
+          <option value="Salida">Salida (consumo / roto / devolución)</option>
+          <option value="Entrada">Entrada (recepción del proveedor)</option>
+          <option value="Ajuste">Ajuste (inventario)</option>
+          <option value="Devolución">Devolución a proveedor</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="mov-cantidad">Cantidad</label>
+        <input type="number" id="mov-cantidad" min="1" step="1" value="1">
+      </div>
+
+      <div class="field">
+        <label for="mov-motivo">Motivo</label>
+        <select id="mov-motivo"></select>
+      </div>
+
+      <div class="field" id="campo-mov-incidencia">
+        <label for="mov-id_incidencia">
+          Incidencia
+          <span class="hint" id="mov-incidencia-hint">Opcional. Obligatorio si Salida + Consumo.</span>
+        </label>
+        <select id="mov-id_incidencia">
+          <option value="">— sin asignar —</option>
+        </select>
+      </div>
+
+      <div class="field" id="campo-mov-proveedor">
+        <label for="mov-id_proveedor">Proveedor</label>
+        <select id="mov-id_proveedor">
+          <option value="">— sin asignar —</option>
+        </select>
+      </div>
+
+      <div class="field" id="campo-mov-precio">
+        <label for="mov-precio_total">Precio total (€)</label>
+        <input type="number" id="mov-precio_total" min="0" step="0.01">
+      </div>
+
+      <div class="field">
+        <label for="mov-notas">
+          Notas
+          <span class="hint" id="mov-notas-hint">Obligatorio si motivo es "Otro".</span>
+        </label>
+        <textarea id="mov-notas" rows="2" maxlength="300"></textarea>
+      </div>
+
+      <div id="modal-mov-error" class="error-banner hidden" role="alert"></div>
+
+      <div class="acciones-modal">
+        <button type="button" class="secondary" id="btn-mov-volver">Cancelar</button>
+        <button type="button" class="primary" id="btn-mov-confirmar">Registrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== MODAL "MARCAR BLOQUEADA POR PIEZA" (F6-B) ========== -->
+  <div id="modal-bloquear-pieza" class="modal hidden" role="dialog" aria-labelledby="modal-blq-title">
+    <div class="modal-card">
+      <h3 id="modal-blq-title">Marcar bloqueada por pieza</h3>
+      <p>Esta acción **enlaza una pieza pendiente** con la incidencia y la pone en estado <strong>Pausada</strong>. <strong>No resta stock</strong> — solo marca que estás esperando recepción.</p>
+
+      <div class="field">
+        <label for="blq-id_pieza">Pieza pendiente</label>
+        <select id="blq-id_pieza">
+          <option value="">— elige pieza —</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="blq-nota">Nota</label>
+        <textarea id="blq-nota" rows="2" maxlength="300" placeholder="Ej: pendiente recepción de Roeirasa, ETA 3 días"></textarea>
+      </div>
+
+      <div id="modal-blq-error" class="error-banner hidden" role="alert"></div>
+
+      <div class="acciones-modal">
+        <button type="button" class="secondary" id="btn-blq-volver">Cancelar</button>
+        <button type="button" class="primary" id="btn-blq-confirmar">Marcar bloqueada</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ========== MODAL CANCELACIÓN ========== -->
   <div id="modal-cancelar" class="modal hidden" role="dialog" aria-labelledby="modal-cancelar-title">

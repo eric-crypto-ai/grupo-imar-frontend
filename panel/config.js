@@ -17,7 +17,8 @@ window.IMAR_PANEL_CONFIG = {
     INCIDENCIA_CREATE: '/webhook/imar/panel/incidencia/create', // POST manual desde panel
     PIEZAS_LIST: '/webhook/imar/panel/piezas',         // F6-A · GET listado
     PIEZA_GET:   '/webhook/imar/panel/pieza',          // F6-A · GET ?id=
+    PIEZA_MOVIMIENTO: '/webhook/imar/panel/pieza/movimiento', // F6-B · POST registrar movimiento
   },
   LS_TOKEN_KEY: 'imar_panel_token',
-  VERSION: '0.3.0',
+  VERSION: '0.4.0',
 };
