@@ -15,8 +15,11 @@
   let CACHE_INC   = null;      // incidencia actual en ficha
   let CACHE_HIST  = null;      // historial de la incidencia actual
   let CACHE_COM   = null;      // comentarios de la incidencia actual
+  let CACHE_PIEZAS_LISTA = null;  // último listado de piezas (F6-A)
+  let CACHE_PIEZA = null;         // pieza actual en ficha (F6-A)
 
   const FILTRO_ACTUAL = { kind: 'activas', q: '' };
+  const FILTRO_PIEZAS = { q: '', familia: '', id_maquina: '', stock_bajo: false };
 
   // Listas de enums (las leo de catálogos que vienen del workflow CATALOGOS)
   // Nota: CATALOGOS no incluye estos enums. Los voy a leer del Sheet config con
@@ -30,7 +33,15 @@
     tipos_fallo:    ['Mecánica','Eléctrica','Neumática','Hidráulica','Software/Control','Seguridad','Otra'],
     motivos_fallo:  ['Desgaste','Rotura','Accidente','Mal uso','Limpieza','Mantenimiento','Diseño'],
     origen_intervencion: ['Interno','Externo'],
+    // F6-A: lista cerrada de tipos y familias de pieza (ver arquitectura §3.10).
+    familias_pieza: ['Mecánica','Eléctrica','Neumática','Consumible','Fijación'],
   };
+
+  // Mapeo familia → CSS class (sin acentos para clases CSS).
+  function familiaCss(f) {
+    const map = {'Mecánica':'Mecanica', 'Eléctrica':'Electrica', 'Neumática':'Neumatica', 'Consumible':'Consumible', 'Fijación':'Fijacion'};
+    return map[f] || 'Otros';
+  }
 
   // ---------- Helpers ----------
   const $ = (id) => document.getElementById(id);
@@ -39,10 +50,24 @@
   function show(id) { $(id).classList.remove('hidden'); }
   function hide(id) { $(id).classList.add('hidden'); }
 
-  const SCREENS = ['screen-loading', 'screen-auth-error', 'screen-lista', 'screen-ficha', 'screen-nueva'];
+  const SCREENS = ['screen-loading', 'screen-auth-error', 'screen-lista', 'screen-ficha', 'screen-nueva', 'screen-piezas', 'screen-pieza'];
   function showScreen(id) {
     SCREENS.forEach((s) => (s === id ? show(s) : hide(s)));
     window.scrollTo({ top: 0, behavior: 'instant' });
+    syncNavPrincipal(id);
+  }
+
+  function syncNavPrincipal(id) {
+    // Mostrar nav solo en pantallas de listado (lista incidencias / piezas).
+    const showNav = (id === 'screen-lista' || id === 'screen-piezas');
+    const nav = $('nav-principal');
+    if (!nav) return;
+    nav.classList.toggle('hidden', !showNav);
+    if (!showNav) return;
+    const active = id === 'screen-piezas' ? 'piezas' : 'lista';
+    qsa('#nav-principal button[data-nav]').forEach((b) =>
+      b.setAttribute('aria-pressed', b.dataset.nav === active ? 'true' : 'false')
+    );
   }
 
   function authHeader() { return { 'Authorization': 'Bearer ' + TOKEN }; }
@@ -150,8 +175,11 @@
   function parseHash() {
     const h = (window.location.hash || '#/lista').slice(1);
     if (h === '/nueva') return { route: 'nueva' };
-    const m = h.match(/^\/incidencia\/([^/?]+)$/);
-    if (m) return { route: 'ficha', id: decodeURIComponent(m[1]) };
+    if (h === '/piezas') return { route: 'piezas' };
+    const mInc = h.match(/^\/incidencia\/([^/?]+)$/);
+    if (mInc) return { route: 'ficha', id: decodeURIComponent(mInc[1]) };
+    const mPz = h.match(/^\/pieza\/([^/?]+)$/);
+    if (mPz) return { route: 'pieza', id: decodeURIComponent(mPz[1]) };
     return { route: 'lista' };
   }
   function navigate(path) { window.location.hash = path; }
@@ -163,6 +191,10 @@
       await renderFicha(r.id);
     } else if (r.route === 'nueva') {
       renderNueva();
+    } else if (r.route === 'piezas') {
+      await renderPiezas();
+    } else if (r.route === 'pieza') {
+      await renderPieza(r.id);
     } else {
       await renderLista();
     }
@@ -605,6 +637,237 @@
     }
   }
 
+  // ---------- Piezas (F6-A) ----------
+
+  function poblarFiltrosPiezas() {
+    // Familias (lista cerrada).
+    const selF = $('piezas-familia');
+    if (selF.options.length <= 1) {
+      ENUMS.familias_pieza.forEach((f) => {
+        const o = document.createElement('option');
+        o.value = f; o.textContent = f;
+        selF.appendChild(o);
+      });
+    }
+    // Máquinas (del catálogo).
+    const selM = $('piezas-id_maquina');
+    if (selM.options.length <= 1) {
+      (CATALOGOS.maquinas || []).forEach((m) => {
+        const o = document.createElement('option');
+        o.value = m.id_maquina;
+        o.textContent = m.nombre + (m.departamento ? ' (' + m.departamento + ')' : '');
+        selM.appendChild(o);
+      });
+    }
+  }
+
+  async function renderPiezas() {
+    showScreen('screen-piezas');
+    poblarFiltrosPiezas();
+
+    $('piezas-meta').textContent = 'Cargando…';
+    $('lista-piezas').innerHTML = '';
+    hide('piezas-vacia');
+
+    const params = {};
+    if (FILTRO_PIEZAS.q)          params.q = FILTRO_PIEZAS.q;
+    if (FILTRO_PIEZAS.familia)    params.familia = FILTRO_PIEZAS.familia;
+    if (FILTRO_PIEZAS.id_maquina) params.id_maquina = FILTRO_PIEZAS.id_maquina;
+    if (FILTRO_PIEZAS.stock_bajo) params.stock_below_min = 'true';
+
+    const r = await apiGet(cfg.ENDPOINTS.PIEZAS_LIST, params);
+    if (!r.ok) {
+      $('piezas-meta').textContent = 'Error: ' + (r.data?.error || r.status);
+      return;
+    }
+    CACHE_PIEZAS_LISTA = r.data.items || [];
+    $('piezas-meta').textContent = `${r.data.returned} de ${r.data.total} piezas`;
+
+    if (CACHE_PIEZAS_LISTA.length === 0) {
+      show('piezas-vacia');
+      return;
+    }
+
+    const cont = $('lista-piezas');
+    cont.innerHTML = '';
+    CACHE_PIEZAS_LISTA.forEach((p) => cont.appendChild(renderTarjetaPieza(p)));
+  }
+
+  function renderTarjetaPieza(p) {
+    const el = document.createElement('div');
+    const fam = familiaCss(p.familia);
+    const stockBajo = (p.stock_actual ?? 0) < (p.stock_minimo ?? 0);
+    el.className = 'tarjeta-pieza familia-' + fam + (stockBajo ? ' stock-bajo' : '');
+    el.dataset.id = p.id_pieza;
+
+    const stockClase = stockBajo ? 'bajo' : 'ok';
+    const variante = p.variante ? `<span class="tarjeta-pieza-variante">${escapeHtml(p.variante)}</span>` : '';
+
+    el.innerHTML = `
+      <div class="tarjeta-pieza-row1">
+        <span class="tarjeta-pieza-ref">${escapeHtml(p.referencia_fabricante || '—')}</span>
+        ${variante}
+      </div>
+      <p class="tarjeta-pieza-titulo">${escapeHtml(p.descripcion || '(sin descripción)')}</p>
+      <div class="tarjeta-pieza-row2">
+        <span class="badge familia ${fam}">${escapeHtml(p.familia || '—')}</span>
+        <span>${escapeHtml(p.tipo_pieza || '—')}</span>
+        ${p.marca ? '<span>' + escapeHtml(p.marca) + '</span>' : ''}
+        ${p.num_usos > 0 ? '<span>· en ' + p.num_usos + ' máquina' + (p.num_usos > 1 ? 's' : '') + '</span>' : ''}
+        <span style="margin-left:auto;" class="stock-indicador ${stockClase}">
+          ${p.stock_actual ?? 0} / ${p.stock_minimo ?? 0}
+        </span>
+      </div>
+    `;
+    el.addEventListener('click', () => navigate('/pieza/' + encodeURIComponent(p.id_pieza)));
+    return el;
+  }
+
+  async function renderPieza(id) {
+    showScreen('screen-loading');
+    const r = await apiGet(cfg.ENDPOINTS.PIEZA_GET, { id });
+    if (!r.ok) {
+      if (r.status === 404) {
+        toast('Pieza no encontrada', 'error');
+      } else {
+        toast(r.data?.error || 'No se pudo cargar la pieza', 'error');
+      }
+      navigate('/piezas');
+      return;
+    }
+    CACHE_PIEZA = r.data;
+    rellenarFichaPieza(r.data);
+    showScreen('screen-pieza');
+  }
+
+  function rellenarFichaPieza(d) {
+    const p = d.pieza || {};
+    const stockActual = d.stock_actual ?? 0;
+    const stockMin = p.stock_minimo ?? 0;
+    const stockBajo = stockActual < stockMin;
+    const fam = familiaCss(p.familia);
+
+    // Cabecera
+    $('pieza-id').textContent = p.id_pieza || '—';
+    $('pieza-ref').textContent = p.referencia_fabricante || '';
+    $('pieza-variante').textContent = p.variante || '';
+    $('pieza-variante-sep').classList.toggle('hidden', !p.variante);
+
+    const tipoBadge = $('pieza-tipo-badge');
+    tipoBadge.textContent = p.tipo_pieza || '—';
+    tipoBadge.className = 'badge';
+
+    const famBadge = $('pieza-familia-badge');
+    famBadge.textContent = p.familia || '—';
+    famBadge.className = 'badge familia ' + fam;
+
+    // Stock
+    const stockEl = $('pieza-stock-actual');
+    stockEl.textContent = stockActual;
+    stockEl.className = 'v stock-valor ' + (stockBajo ? 'stock-indicador bajo' : 'stock-indicador ok');
+    $('pieza-stock-minimo').textContent = stockMin;
+    $('pieza-ubicacion').textContent = p.ubicacion_almacen || '—';
+    $('pieza-alerta-stock').classList.toggle('hidden', !stockBajo);
+
+    // Datos
+    $('pieza-marca').textContent = p.marca || '—';
+    $('pieza-tipo').textContent = p.tipo_pieza || '—';
+    $('pieza-familia').textContent = p.familia || '—';
+    $('pieza-activa').textContent = p.activa || '—';
+    $('pieza-fecha-alta').textContent = p.fecha_alta || '—';
+    $('pieza-fecha-mov').textContent = fmtFecha(p.fecha_ultimo_movimiento) || '—';
+    $('pieza-notas').textContent = p.notas || '—';
+
+    // Usos por máquina
+    rellenarUsosPieza(d.usos || []);
+
+    // Proveedor
+    rellenarProveedorPieza(d.proveedor);
+
+    // Movimientos
+    rellenarMovimientosPieza(d.movimientos_recientes || []);
+  }
+
+  function rellenarUsosPieza(usos) {
+    const ul = $('lista-usos');
+    ul.innerHTML = '';
+    if (!usos || usos.length === 0) {
+      ul.innerHTML = '<li style="color:var(--color-text-soft);font-size:0.9rem;">Sin usos registrados todavía. Edwin podrá añadirlos cuando llegue F6-B.</li>';
+      return;
+    }
+    usos.forEach((u) => {
+      const li = document.createElement('li');
+      const nombreMaq = u.nombre_maquina || u.id_maquina || '—';
+      const dept = u.departamento ? `<span class="uso-departamento">${escapeHtml(u.departamento)}</span>` : '';
+      li.innerHTML = `
+        <div>
+          <span class="uso-maquina">${escapeHtml(nombreMaq)}</span>
+          ${dept}
+        </div>
+        <div class="uso-detalle">
+          ${u.posicion ? escapeHtml(u.posicion) : '(sin posición)'}
+          · <span class="uso-cantidad">${u.cantidad_por_maquina ?? 0}</span> ud${(u.cantidad_por_maquina === 1) ? '' : 's'}
+          ${u.criticidad ? ' · ' + escapeHtml(u.criticidad) : ''}
+        </div>
+      `;
+      ul.appendChild(li);
+    });
+  }
+
+  function rellenarProveedorPieza(prov) {
+    const vacio = $('proveedor-vacio');
+    const detalle = $('proveedor-detalle');
+    if (!prov) {
+      vacio.classList.remove('hidden');
+      detalle.classList.add('hidden');
+      return;
+    }
+    vacio.classList.add('hidden');
+    detalle.classList.remove('hidden');
+
+    $('prov-nombre').textContent = prov.nombre || '—';
+    $('prov-categoria').textContent = prov.categoria_principal || '—';
+    $('prov-contacto').textContent = prov.persona_contacto || '—';
+
+    const emailEl = $('prov-email');
+    if (prov.email) {
+      emailEl.innerHTML = `<a href="mailto:${escapeHtml(prov.email)}">${escapeHtml(prov.email)}</a>`;
+    } else {
+      emailEl.textContent = '—';
+    }
+
+    const telEl = $('prov-telefono');
+    const tels = [prov.tel1, prov.tel2].filter(Boolean);
+    if (tels.length === 0) {
+      telEl.textContent = '—';
+    } else {
+      telEl.innerHTML = tels.map((t) =>
+        `<a href="tel:${escapeHtml(String(t).replace(/\s/g, ''))}">${escapeHtml(t)}</a>`
+      ).join(' · ');
+    }
+  }
+
+  function rellenarMovimientosPieza(movs) {
+    const ul = $('lista-movimientos');
+    ul.innerHTML = '';
+    if (!movs || movs.length === 0) {
+      ul.innerHTML = '<li class="t">Sin movimientos registrados.</li>';
+      return;
+    }
+    movs.forEach((m) => {
+      const li = document.createElement('li');
+      const signo = (m.tipo === 'Salida' || m.tipo === 'Devolución') ? '−' : '+';
+      const motivo = m.motivo ? ' · ' + escapeHtml(m.motivo) : '';
+      const inc = m.id_incidencia ? ' · ' + escapeHtml(m.id_incidencia) : '';
+      li.innerHTML = `
+        <div class="t">${fmtFecha(m.fecha)} · ${escapeHtml(m.actor || '—')}</div>
+        <span class="e">${escapeHtml(m.tipo)} ${signo}${m.cantidad ?? 0}</span>
+        <span>${motivo}${inc}</span>
+      `;
+      ul.appendChild(li);
+    });
+  }
+
   // ---------- Cancelación ----------
   function abrirModalCancelar() {
     $('modal-motivo').value = '';
@@ -695,6 +958,36 @@
     $('btn-volver-lista-nueva').addEventListener('click', () => navigate('/lista'));
     $('btn-cancelar-nueva').addEventListener('click', () => navigate('/lista'));
     $('form-nueva').addEventListener('submit', crearNueva);
+
+    // Nav principal (incidencias / piezas)
+    qsa('#nav-principal button[data-nav]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const target = b.dataset.nav;
+        navigate(target === 'piezas' ? '/piezas' : '/lista');
+      });
+    });
+
+    // Piezas — listado
+    $('piezas-busqueda').addEventListener('input', debounce(() => {
+      FILTRO_PIEZAS.q = $('piezas-busqueda').value.trim();
+      renderPiezas();
+    }, 350));
+    $('piezas-familia').addEventListener('change', () => {
+      FILTRO_PIEZAS.familia = $('piezas-familia').value;
+      renderPiezas();
+    });
+    $('piezas-id_maquina').addEventListener('change', () => {
+      FILTRO_PIEZAS.id_maquina = $('piezas-id_maquina').value;
+      renderPiezas();
+    });
+    $('piezas-stock-bajo').addEventListener('change', () => {
+      FILTRO_PIEZAS.stock_bajo = $('piezas-stock-bajo').checked;
+      renderPiezas();
+    });
+    $('btn-piezas-refresh').addEventListener('click', () => renderPiezas());
+
+    // Pieza — volver
+    $('btn-volver-piezas').addEventListener('click', () => navigate('/piezas'));
 
     // Hash routing
     window.addEventListener('hashchange', onHashChange);

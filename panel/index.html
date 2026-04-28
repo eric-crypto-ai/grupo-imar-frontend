@@ -17,6 +17,12 @@
     <span class="subtitle">Edwin · Grupo Imar</span>
   </header>
 
+  <!-- ========== NAV PRINCIPAL (incidencias / piezas) ========== -->
+  <nav id="nav-principal" class="nav-principal hidden" aria-label="Navegación principal">
+    <button type="button" data-nav="lista"  aria-pressed="true">Incidencias</button>
+    <button type="button" data-nav="piezas" aria-pressed="false">Piezas</button>
+  </nav>
+
   <!-- ========== LOADING (al iniciar y al hacer auth) ========== -->
   <section id="screen-loading" class="card">
     <p style="text-align:center; margin: 0.5rem 0;">
@@ -307,6 +313,102 @@
     <div class="card">
       <h3>Histórico</h3>
       <ul id="lista-historial" class="historial"></ul>
+    </div>
+  </section>
+
+  <!-- ========== PIEZAS — listado (F6-A) ========== -->
+  <section id="screen-piezas" class="hidden">
+    <div class="card">
+      <div class="filtros">
+        <input type="search" id="piezas-busqueda" placeholder="Buscar por referencia, descripción…" aria-label="Buscar piezas">
+        <div class="filtros-row">
+          <select id="piezas-familia" aria-label="Familia">
+            <option value="">Todas las familias</option>
+          </select>
+          <select id="piezas-id_maquina" aria-label="Máquina">
+            <option value="">Todas las máquinas</option>
+          </select>
+        </div>
+        <label class="checkbox">
+          <input type="checkbox" id="piezas-stock-bajo">
+          Solo piezas con stock bajo
+        </label>
+        <button type="button" class="secondary" id="btn-piezas-refresh">↻ Refrescar</button>
+      </div>
+      <p id="piezas-meta" class="meta"></p>
+    </div>
+
+    <div id="lista-piezas" class="lista-piezas"></div>
+
+    <p id="piezas-vacia" class="empty hidden">No hay piezas con estos filtros.</p>
+  </section>
+
+  <!-- ========== PIEZA — ficha (F6-A) ========== -->
+  <section id="screen-pieza" class="hidden">
+    <button type="button" class="back" id="btn-volver-piezas">← Piezas</button>
+
+    <div class="card pieza-cabecera">
+      <h2 id="pieza-id">PZ-…</h2>
+      <p class="pieza-meta">
+        <span id="pieza-ref"></span><span id="pieza-variante-sep" class="hidden"> · </span><span id="pieza-variante"></span>
+      </p>
+      <div class="pieza-tipo-badges">
+        <span class="badge" id="pieza-tipo-badge">·</span>
+        <span class="badge familia" id="pieza-familia-badge">·</span>
+      </div>
+    </div>
+
+    <!-- Stock -->
+    <div class="card">
+      <h3>Stock</h3>
+      <div class="kv"><span class="k">Stock actual</span><span class="v stock-valor" id="pieza-stock-actual">·</span></div>
+      <div class="kv"><span class="k">Stock mínimo</span><span class="v" id="pieza-stock-minimo">·</span></div>
+      <div class="kv"><span class="k">Ubicación almacén</span><span class="v" id="pieza-ubicacion">—</span></div>
+      <div id="pieza-alerta-stock" class="error-banner hidden" style="margin-top:0.7rem;">
+        ⚠ Stock por debajo del mínimo. Considerar reposición.
+      </div>
+    </div>
+
+    <!-- Datos -->
+    <div class="card">
+      <h3>Datos de la pieza</h3>
+      <div class="kv"><span class="k">Marca</span><span class="v" id="pieza-marca">—</span></div>
+      <div class="kv"><span class="k">Tipo</span><span class="v" id="pieza-tipo">—</span></div>
+      <div class="kv"><span class="k">Familia</span><span class="v" id="pieza-familia">—</span></div>
+      <div class="kv"><span class="k">Activa</span><span class="v" id="pieza-activa">—</span></div>
+      <div class="kv"><span class="k">Fecha alta</span><span class="v" id="pieza-fecha-alta">—</span></div>
+      <div class="kv"><span class="k">Último movimiento</span><span class="v" id="pieza-fecha-mov">—</span></div>
+      <div class="kv block">
+        <span class="k">Notas</span>
+        <p class="v" id="pieza-notas">—</p>
+      </div>
+    </div>
+
+    <!-- Usos por máquina -->
+    <div class="card">
+      <h3>Usos por máquina</h3>
+      <ul id="lista-usos" class="usos"></ul>
+    </div>
+
+    <!-- Proveedor -->
+    <div class="card" id="card-proveedor">
+      <h3>Proveedor principal</h3>
+      <div id="proveedor-vacio" class="empty" style="padding:0.5rem 0; text-align:left;">
+        Sin proveedor asignado.
+      </div>
+      <div id="proveedor-detalle" class="hidden">
+        <div class="kv"><span class="k">Nombre</span><span class="v" id="prov-nombre">·</span></div>
+        <div class="kv"><span class="k">Categoría</span><span class="v" id="prov-categoria">·</span></div>
+        <div class="kv"><span class="k">Contacto</span><span class="v" id="prov-contacto">—</span></div>
+        <div class="kv"><span class="k">Email</span><span class="v" id="prov-email">—</span></div>
+        <div class="kv"><span class="k">Teléfono</span><span class="v" id="prov-telefono">—</span></div>
+      </div>
+    </div>
+
+    <!-- Movimientos recientes -->
+    <div class="card">
+      <h3>Movimientos recientes</h3>
+      <ul id="lista-movimientos" class="historial"></ul>
     </div>
   </section>
 
