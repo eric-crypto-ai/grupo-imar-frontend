@@ -6,11 +6,11 @@
 
 window.IMAR_CONFIG = {
   API_BASE: 'https://primary-production-2cf7.up.railway.app',
-  WEBHOOK_TOKEN: '0503fddf1debab4e7f56068a4cd7c1ac01fc4843d266a600',
+  WEBHOOK_TOKEN: '46b2a3db8cfd515f92a8897cd667d50a4f23d7825a03a1373fb26e3ed8cbb363',
   ENDPOINTS: {
     CATALOGOS:  '/webhook/imar/catalogos',
     INCIDENCIA: '/webhook/imar/nueva-incidencia',
   },
   // Versión del frontend, útil para comparar contra Sheet config.version_schema en debug.
-  VERSION: '0.1.0',
+  VERSION: '0.1.1',
 };
