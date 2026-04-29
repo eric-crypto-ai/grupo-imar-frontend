@@ -20,5 +20,5 @@ window.IMAR_PANEL_CONFIG = {
     PIEZA_MOVIMIENTO: '/webhook/imar/panel/pieza/movimiento', // F6-B · POST registrar movimiento
   },
   LS_TOKEN_KEY: 'imar_panel_token',
-  VERSION: '0.4.0',
+  VERSION: '0.4.1',
 };
