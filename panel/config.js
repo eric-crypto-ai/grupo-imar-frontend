@@ -9,7 +9,8 @@ window.IMAR_PANEL_CONFIG = {
   ENDPOINTS: {
     AUTH:        '/webhook/imar/panel/auth',
     CATALOGOS:   '/webhook/imar/catalogos',           // reutilizado del form
-    CONFIG:      '/webhook/imar/config',               // F2-C · BKL-032 B1 · enums + parámetros + defaults
+    CONFIG:      '/webhook/imar/config',               // F2-C · BKL-032 B1 · GET enums + parámetros + defaults
+    CONFIG_PATCH:'/webhook/imar/config',               // F2-C · BKL-028   · PATCH (mismo path, distinto método)
     LIST:        '/webhook/imar/panel/incidencias',
     GET:         '/webhook/imar/panel/incidencia',     // ?id=
     UPDATE:      '/webhook/imar/panel/incidencia',     // PATCH ?id=
@@ -21,5 +22,8 @@ window.IMAR_PANEL_CONFIG = {
     PIEZA_MOVIMIENTO: '/webhook/imar/panel/pieza/movimiento', // F6-B · POST registrar movimiento
   },
   LS_TOKEN_KEY: 'imar_panel_token',
-  VERSION: '0.5.0',
+  VERSION: '0.6.0',
+  // localStorage key para el token de Eric (X-Imar-Force-Hard-Enum). No se distribuye en código.
+  // Eric lo guarda manualmente con `localStorage.setItem('imar_force_hard_token','<valor>')` desde DevTools.
+  LS_FORCE_HARD_KEY: 'imar_force_hard_token',
 };

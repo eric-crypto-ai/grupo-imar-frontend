@@ -35,7 +35,7 @@
   function show(id) { $(id).classList.remove('hidden'); }
   function hide(id) { $(id).classList.add('hidden'); }
 
-  const SCREENS = ['screen-loading', 'screen-auth-error', 'screen-lista', 'screen-ficha', 'screen-nueva', 'screen-piezas', 'screen-pieza'];
+  const SCREENS = ['screen-loading', 'screen-auth-error', 'screen-lista', 'screen-ficha', 'screen-nueva', 'screen-piezas', 'screen-pieza', 'screen-config'];
   function showScreen(id) {
     SCREENS.forEach((s) => (s === id ? show(s) : hide(s)));
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -43,13 +43,13 @@
   }
 
   function syncNavPrincipal(id) {
-    // Mostrar nav solo en pantallas de listado (lista incidencias / piezas).
-    const showNav = (id === 'screen-lista' || id === 'screen-piezas');
+    // Mostrar nav en pantallas de listado y en config.
+    const showNav = (id === 'screen-lista' || id === 'screen-piezas' || id === 'screen-config');
     const nav = $('nav-principal');
     if (!nav) return;
     nav.classList.toggle('hidden', !showNav);
     if (!showNav) return;
-    const active = id === 'screen-piezas' ? 'piezas' : 'lista';
+    const active = id === 'screen-piezas' ? 'piezas' : (id === 'screen-config' ? 'config' : 'lista');
     qsa('#nav-principal button[data-nav]').forEach((b) =>
       b.setAttribute('aria-pressed', b.dataset.nav === active ? 'true' : 'false')
     );
@@ -172,6 +172,7 @@
     if (h === '/nueva') return { route: 'nueva' };
     if (h === '/piezas') return { route: 'piezas' };
     if (h === '/pedidos-pieza') return { route: 'pedidos' };
+    if (h === '/config') return { route: 'config' };
     const mInc = h.match(/^\/incidencia\/([^/?]+)$/);
     if (mInc) return { route: 'ficha', id: decodeURIComponent(mInc[1]) };
     const mPz = h.match(/^\/pieza\/([^/?]+)$/);
@@ -197,6 +198,8 @@
       const cb = $('piezas-stock-bajo'); if (cb) cb.checked = true;
     } else if (r.route === 'pieza') {
       await renderPieza(r.id);
+    } else if (r.route === 'config') {
+      await renderConfig();
     } else {
       await renderLista();
     }
@@ -1262,13 +1265,19 @@
     $('btn-cancelar-nueva').addEventListener('click', () => navigate('/lista'));
     $('form-nueva').addEventListener('submit', crearNueva);
 
-    // Nav principal (incidencias / piezas)
+    // Nav principal (incidencias / piezas / config)
     qsa('#nav-principal button[data-nav]').forEach((b) => {
       b.addEventListener('click', () => {
         const target = b.dataset.nav;
-        navigate(target === 'piezas' ? '/piezas' : '/lista');
+        if (target === 'piezas') navigate('/piezas');
+        else if (target === 'config') navigate('/config');
+        else navigate('/lista');
       });
     });
+
+    // Config — botón volver
+    const btnVolverCfg = $('btn-volver-config');
+    if (btnVolverCfg) btnVolverCfg.addEventListener('click', () => navigate('/lista'));
 
     // Piezas — listado
     $('piezas-busqueda').addEventListener('input', debounce(() => {
@@ -1354,6 +1363,340 @@
   function debounce(fn, ms) {
     let t;
     return function (...a) { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms); };
+  }
+
+  // ---------- Config #/config (BKL-028) ----------
+  // Catálogo de claves editables — espejo del META del workflow IMAR_PANEL_CONFIG_PATCH.
+  // Mantener sincronizado con la nota 05.§5 cuando se añadan claves nuevas.
+  const CONFIG_META = {
+    // Enums blandos
+    categorias:               { seccion: 'enums_blandos', tipo: 'lista', operaciones: ['add','remove'] },
+    tipos_fallo:              { seccion: 'enums_blandos', tipo: 'lista', operaciones: ['add','remove'] },
+    motivos_fallo:            { seccion: 'enums_blandos', tipo: 'lista', operaciones: ['add','remove'] },
+    departamentos:            { seccion: 'enums_blandos', tipo: 'lista', operaciones: ['add','remove'] },
+    turnos:                   { seccion: 'enums_blandos', tipo: 'lista', operaciones: ['add','remove'] },
+    tipos_pieza:              { seccion: 'enums_blandos', tipo: 'lista', operaciones: ['add','remove'] },
+    familias_pieza:           { seccion: 'enums_blandos', tipo: 'lista', operaciones: ['add','remove'] },
+    motivos_movimiento_stock: { seccion: 'enums_blandos', tipo: 'lista', operaciones: ['add','remove'] },
+    estados_pedido_pieza:     { seccion: 'enums_blandos', tipo: 'lista', operaciones: ['add','remove'] },
+    categorias_proveedor:     { seccion: 'enums_blandos', tipo: 'lista', operaciones: ['add','remove'] },
+    // Enums duros (read-only Edwin)
+    estados:                  { seccion: 'enums_duros', tipo: 'lista', duro: true },
+    prioridades:              { seccion: 'enums_duros', tipo: 'lista', duro: true },
+    tipos_movimiento_stock:   { seccion: 'enums_duros', tipo: 'lista', duro: true },
+    origen_intervencion:      { seccion: 'enums_duros', tipo: 'lista', duro: true },
+    transiciones_estado:      { seccion: 'enums_duros', tipo: 'mapa', duro: true },
+    estados_terminales:       { seccion: 'enums_duros', tipo: 'lista', duro: true },
+    // Mapas blandos
+    motivos_por_tipo_movimiento: { seccion: 'mapas_blandos', tipo: 'mapa' },
+    // Parámetros
+    rate_limit_op_max:            { seccion: 'parametros', tipo: 'parametro_int', rango: [1,20] },
+    rate_limit_op_window_min:     { seccion: 'parametros', tipo: 'parametro_int', rango: [1,60] },
+    rate_limit_global_max:        { seccion: 'parametros', tipo: 'parametro_int', rango: [1,100] },
+    rate_limit_global_window_s:   { seccion: 'parametros', tipo: 'parametro_int', rango: [10,600] },
+    cron_resumen_diario:          { seccion: 'parametros', tipo: 'parametro_string' },
+    stock_minimo_default:         { seccion: 'parametros', tipo: 'parametro_int', rango: [0,100] },
+    dashboard_umbral_sin_tocar_h: { seccion: 'parametros', tipo: 'parametro_int', rango: [1,168] },
+    panel_listado_limit:          { seccion: 'parametros', tipo: 'parametro_int', rango: [10,500] },
+    pieza_listado_limit:          { seccion: 'parametros', tipo: 'parametro_int', rango: [10,500] },
+    descripcion_form_min_chars:   { seccion: 'parametros', tipo: 'parametro_int', rango: [1,50] },
+    descripcion_panel_min_chars:  { seccion: 'parametros', tipo: 'parametro_int', rango: [1,50] },
+    comentario_min_chars:         { seccion: 'parametros', tipo: 'parametro_int', rango: [1,50] },
+    motivo_cancelacion_min_chars: { seccion: 'parametros', tipo: 'parametro_int', rango: [1,50] },
+    motivo_otro_notas_min_chars:  { seccion: 'parametros', tipo: 'parametro_int', rango: [1,50] },
+    telegram_chat_destino:        { seccion: 'parametros', tipo: 'parametro_string' },
+    panel_url_base:               { seccion: 'parametros', tipo: 'parametro_string' },
+    form_url_base:                { seccion: 'parametros', tipo: 'parametro_string' },
+    // Defaults
+    default_categoria_form:        { seccion: 'defaults', tipo: 'default', referencia_lista: 'categorias' },
+    default_categoria_panel_nueva: { seccion: 'defaults', tipo: 'default', referencia_lista: 'categorias' },
+    default_tipo_fallo_form:       { seccion: 'defaults', tipo: 'default', referencia_lista: 'tipos_fallo' },
+    default_origen_intervencion:   { seccion: 'defaults', tipo: 'default', referencia_lista: 'origen_intervencion' },
+    default_estado_inicial:        { seccion: 'defaults', tipo: 'default', referencia_lista: 'estados' },
+    // Reglas auto (duras)
+    prio_auto_si_maquina_parada: { seccion: 'reglas_auto', tipo: 'regla_auto', duro: true, referencia_lista: 'prioridades' },
+    prio_auto_si_tipo_seguridad: { seccion: 'reglas_auto', tipo: 'regla_auto', duro: true, referencia_lista: 'prioridades' },
+  };
+  const SECCIONES_ORDEN = [
+    { id: 'enums_blandos', titulo: 'Listas (editables)',
+      meta: 'Edwin puede añadir/quitar valores. Los cambios se aplican al siguiente login del panel y form.' },
+    { id: 'enums_duros',   titulo: '🔒 Listas con lógica (read-only)',
+      meta: 'Estos valores están atados a transiciones, validaciones y plantillas. Sólo Eric puede editarlos. Si necesitas un cambio, contacta a Eric con el motivo.' },
+    { id: 'mapas_blandos', titulo: 'Mapas (vista JSON)',
+      meta: 'Mapas editables — para Edwin son sólo lectura. Si quieres modificarlos, contacta a Eric.' },
+    { id: 'parametros',    titulo: 'Parámetros operativos',
+      meta: 'Valores numéricos y de configuración (rate-limits, mínimos, URL base, cron…).' },
+    { id: 'defaults',      titulo: 'Defaults',
+      meta: 'Valores que pre-rellenan formularios.' },
+    { id: 'reglas_auto',   titulo: '🔒 Reglas automáticas (read-only)',
+      meta: 'Reglas P19 — sólo Eric.' },
+  ];
+
+  function configToast(msg, type) {
+    const el = $('config-toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'config-toast ' + (type || '');
+    el.classList.remove('hidden');
+    setTimeout(() => el.classList.add('hidden'), 4500);
+  }
+
+  function buildKeyChips(clave, items, lockedReason) {
+    const wrap = document.createElement('div');
+    wrap.className = 'config-chips';
+    items.forEach((v) => {
+      const chip = document.createElement('span');
+      chip.className = 'config-chip' + (lockedReason ? ' locked' : '');
+      chip.textContent = v;
+      if (!lockedReason) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'chip-remove';
+        btn.setAttribute('aria-label', 'Quitar ' + v);
+        btn.textContent = '×';
+        btn.addEventListener('click', () => onRemoveItem(clave, v));
+        chip.appendChild(btn);
+      }
+      wrap.appendChild(chip);
+    });
+    return wrap;
+  }
+
+  function buildAddRow(clave) {
+    const row = document.createElement('div');
+    row.className = 'config-add-row';
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.placeholder = 'Nuevo valor…';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = '+ Añadir';
+    btn.addEventListener('click', () => {
+      const v = (inp.value || '').trim();
+      if (!v) return;
+      onAddItem(clave, v).then((ok) => { if (ok) inp.value = ''; });
+    });
+    row.appendChild(inp);
+    row.appendChild(btn);
+    return row;
+  }
+
+  function buildKeyBlockLista(clave, meta, valorActual) {
+    const div = document.createElement('div');
+    div.className = 'config-key';
+    const label = document.createElement('div');
+    label.className = 'config-key-label';
+    label.innerHTML = '<code>' + clave + '</code>' + (meta.duro ? '<span class="badge-locked">🔒 read-only</span>' : '');
+    div.appendChild(label);
+    const items = Array.isArray(valorActual) ? valorActual : (typeof valorActual === 'string' ? valorActual.split(',') : []);
+    div.appendChild(buildKeyChips(clave, items, meta.duro));
+    if (!meta.duro) div.appendChild(buildAddRow(clave));
+    return div;
+  }
+
+  function buildKeyBlockMapa(clave, meta, valorActual) {
+    const div = document.createElement('div');
+    div.className = 'config-key';
+    const label = document.createElement('div');
+    label.className = 'config-key-label';
+    label.innerHTML = '<code>' + clave + '</code>' + (meta.duro ? '<span class="badge-locked">🔒 read-only</span>' : '<span class="badge-locked">vista JSON</span>');
+    div.appendChild(label);
+    const pre = document.createElement('pre');
+    pre.className = 'config-mapa-pre';
+    pre.textContent = JSON.stringify(valorActual || {}, null, 2);
+    div.appendChild(pre);
+    return div;
+  }
+
+  function buildKeyBlockParametro(clave, meta, valorActual) {
+    const div = document.createElement('div');
+    div.className = 'config-key';
+    const label = document.createElement('div');
+    label.className = 'config-key-label';
+    label.innerHTML = '<code>' + clave + '</code>';
+    div.appendChild(label);
+    if (meta.rango) {
+      const desc = document.createElement('p');
+      desc.className = 'config-key-desc';
+      desc.textContent = 'Rango permitido: [' + meta.rango[0] + ', ' + meta.rango[1] + ']';
+      div.appendChild(desc);
+    }
+    const row = document.createElement('div');
+    row.className = 'config-input-row';
+    const inp = document.createElement('input');
+    inp.type = (meta.tipo === 'parametro_int') ? 'number' : 'text';
+    inp.value = valorActual != null ? String(valorActual) : '';
+    if (meta.rango) { inp.min = meta.rango[0]; inp.max = meta.rango[1]; inp.step = 1; }
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Guardar';
+    btn.addEventListener('click', () => {
+      const raw = inp.value;
+      const v = (meta.tipo === 'parametro_int') ? parseInt(raw, 10) : String(raw);
+      onSetParametro(clave, v);
+    });
+    row.appendChild(inp);
+    row.appendChild(btn);
+    div.appendChild(row);
+    return div;
+  }
+
+  function buildKeyBlockDefault(clave, meta, valorActual) {
+    const div = document.createElement('div');
+    div.className = 'config-key';
+    const label = document.createElement('div');
+    label.className = 'config-key-label';
+    label.innerHTML = '<code>' + clave + '</code>' + (meta.duro ? '<span class="badge-locked">🔒 read-only</span>' : '');
+    div.appendChild(label);
+    if (meta.referencia_lista) {
+      const desc = document.createElement('p');
+      desc.className = 'config-key-desc';
+      desc.textContent = 'Valores válidos: los de ' + meta.referencia_lista;
+      div.appendChild(desc);
+    }
+    const row = document.createElement('div');
+    row.className = 'config-input-row';
+    const sel = document.createElement('select');
+    if (meta.duro) sel.disabled = true;
+    const opciones = (CFG.enums[meta.referencia_lista] || []).slice();
+    if (!opciones.includes(valorActual)) opciones.unshift(valorActual);
+    opciones.forEach((v) => {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = v;
+      if (v === valorActual) o.selected = true;
+      sel.appendChild(o);
+    });
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Guardar';
+    if (meta.duro) btn.disabled = true;
+    btn.addEventListener('click', () => onSetParametro(clave, sel.value));
+    row.appendChild(sel);
+    row.appendChild(btn);
+    div.appendChild(row);
+    if (meta.duro) {
+      const w = document.createElement('div');
+      w.className = 'config-coordinar';
+      w.textContent = 'Coordinado con Eric — modificación requiere flag.';
+      div.appendChild(w);
+    }
+    return div;
+  }
+
+  async function renderConfig() {
+    showScreen('screen-config');
+    const cont = $('config-sections');
+    if (!cont) return;
+    cont.innerHTML = '';
+
+    if (!CFG) {
+      cont.innerHTML = '<p class="meta">CFG no cargado. Recarga la página.</p>';
+      return;
+    }
+
+    // Refrescar CFG fresco al entrar (por si Eric editó en el Sheet hace 30s)
+    try {
+      const r = await apiGet(cfg.ENDPOINTS.CONFIG);
+      if (r.ok && r.data && r.data.success) CFG = r.data;
+    } catch (e) { /* mantener CFG en memoria */ }
+
+    SECCIONES_ORDEN.forEach((sec) => {
+      const claves = Object.keys(CONFIG_META).filter((k) => CONFIG_META[k].seccion === sec.id);
+      if (!claves.length) return;
+      const sect = document.createElement('section');
+      sect.className = 'config-section';
+      const h = document.createElement('h3');
+      h.textContent = sec.titulo;
+      sect.appendChild(h);
+      const m = document.createElement('p');
+      m.className = 'section-meta';
+      m.textContent = sec.meta;
+      sect.appendChild(m);
+      claves.forEach((clave) => {
+        const meta = CONFIG_META[clave];
+        let val;
+        if (meta.tipo === 'lista') {
+          val = (CFG.enums && CFG.enums[clave]) || (CFG.mapas && CFG.mapas[clave]) || [];
+        } else if (meta.tipo === 'mapa') {
+          val = (CFG.mapas && CFG.mapas[clave]) || {};
+        } else if (meta.tipo === 'default') {
+          val = (CFG.defaults && CFG.defaults[clave.replace(/^default_/, '')]) || '';
+        } else if (meta.tipo === 'regla_auto') {
+          val = (CFG.reglas_auto && CFG.reglas_auto[clave]) || '';
+        } else {
+          val = (CFG.parametros && CFG.parametros[clave]) != null ? CFG.parametros[clave] : '';
+        }
+
+        let block;
+        if (meta.tipo === 'lista') block = buildKeyBlockLista(clave, meta, val);
+        else if (meta.tipo === 'mapa') block = buildKeyBlockMapa(clave, meta, val);
+        else if (meta.tipo === 'default' || meta.tipo === 'regla_auto') block = buildKeyBlockDefault(clave, meta, val);
+        else block = buildKeyBlockParametro(clave, meta, val);
+        sect.appendChild(block);
+      });
+      cont.appendChild(sect);
+    });
+  }
+
+  async function applyConfigPatch(body) {
+    const meta = CONFIG_META[body.clave];
+    if (!meta) { configToast('clave desconocida: ' + body.clave, 'err'); return null; }
+
+    const headers = { 'Content-Type': 'application/json', ...authHeader() };
+    if (meta.duro) {
+      const force = localStorage.getItem(cfg.LS_FORCE_HARD_KEY) || '';
+      if (!force) {
+        configToast('Esta clave es duro — necesitas el token X-Imar-Force-Hard-Enum (sólo Eric).', 'err');
+        return null;
+      }
+      headers['X-Imar-Force-Hard-Enum'] = force;
+    }
+    try {
+      const r = await fetch(cfg.API_BASE + cfg.ENDPOINTS.CONFIG_PATCH, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(body),
+      });
+      const data = await r.json();
+      if (r.ok && data.success) {
+        configToast('OK: ' + body.clave + ' ' + body.operacion + ' aplicado', 'ok');
+        // Refrescar CFG y re-render
+        try {
+          const r2 = await apiGet(cfg.ENDPOINTS.CONFIG);
+          if (r2.ok && r2.data && r2.data.success) CFG = r2.data;
+        } catch (e) {}
+        await renderConfig();
+        return data;
+      }
+      // Errores específicos
+      if (r.status === 409 && data.error === 'valores_en_uso') {
+        const lista = (data.valores || []).map((v) => v + ' (×' + (data.conteos[v] || '?') + ')').join(', ');
+        configToast('No se puede quitar — en uso: ' + lista, 'err');
+      } else if (r.status === 403) {
+        configToast('Bloqueado: ' + (data.detalle || 'enum duro'), 'err');
+      } else if (r.status === 409 && data.error === 'incoherencia') {
+        configToast('Incoherencia: ' + (data.detalle || ''), 'err');
+      } else {
+        configToast('Error ' + r.status + ': ' + (data.detalle || data.error || ''), 'err');
+      }
+      return null;
+    } catch (e) {
+      configToast('Error de red: ' + e.message, 'err');
+      return null;
+    }
+  }
+
+  function onAddItem(clave, valor) {
+    if (!confirm('Añadir "' + valor + '" a ' + clave + '?')) return Promise.resolve(false);
+    return applyConfigPatch({ clave, operacion: 'add', valor_nuevo: valor }).then((d) => !!d);
+  }
+  function onRemoveItem(clave, valor) {
+    if (!confirm('Quitar "' + valor + '" de ' + clave + '?\n\nSi el valor está en uso en datos existentes, el sistema lo rechazará.')) return;
+    applyConfigPatch({ clave, operacion: 'remove', valor_nuevo: valor });
+  }
+  function onSetParametro(clave, valor) {
+    if (!confirm('Cambiar ' + clave + ' a "' + valor + '"?')) return;
+    applyConfigPatch({ clave, operacion: 'set', valor_nuevo: valor });
   }
 
   document.addEventListener('DOMContentLoaded', init);

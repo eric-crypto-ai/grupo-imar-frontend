@@ -18,10 +18,11 @@
     <span class="subtitle">Edwin · Grupo Imar</span>
   </header>
 
-  <!-- ========== NAV PRINCIPAL (incidencias / piezas) ========== -->
+  <!-- ========== NAV PRINCIPAL (incidencias / piezas / config) ========== -->
   <nav id="nav-principal" class="nav-principal hidden" aria-label="Navegación principal">
     <button type="button" data-nav="lista"  aria-pressed="true">Incidencias</button>
     <button type="button" data-nav="piezas" aria-pressed="false">Piezas</button>
+    <button type="button" data-nav="config" aria-pressed="false" aria-label="Configuración" title="Configuración">⚙</button>
   </nav>
 
   <!-- ========== LOADING (al iniciar y al hacer auth) ========== -->
@@ -427,6 +428,15 @@
       <h3>Movimientos recientes</h3>
       <ul id="lista-movimientos" class="historial"></ul>
     </div>
+  </section>
+
+  <!-- ========== CONFIG — vista de edición (F2-C BKL-028) ========== -->
+  <section id="screen-config" class="hidden">
+    <button id="btn-volver-config" class="btn-volver" aria-label="Volver">← Volver</button>
+    <h2>Configuración del sistema</h2>
+    <p class="meta">Las claves marcadas con 🔒 son <strong>enums duros</strong>: tocan lógica del sistema y sólo Eric puede editarlas. Cualquier cambio en una clave se propaga al siguiente login del panel y form.</p>
+    <div id="config-toast" class="hidden config-toast" role="status"></div>
+    <div id="config-sections"></div>
   </section>
 
   <!-- ========== MODAL MOVIMIENTO DE STOCK (F6-B) ========== -->

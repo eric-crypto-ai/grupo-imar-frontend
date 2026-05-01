@@ -673,3 +673,143 @@ footer {
   .acciones-stock { grid-template-columns: 1fr; }
 }
 .acciones-stock button { width: 100%; }
+
+/* ============================================================
+   CONFIG — vista de edición (BKL-028)
+   ============================================================ */
+.config-section {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.config-section h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.config-section .section-meta {
+  margin: 0 0 0.8rem;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+.config-key {
+  padding: 0.7rem 0;
+  border-top: 1px solid #f1f5f9;
+}
+.config-key:first-child { border-top: none; padding-top: 0; }
+.config-key-label {
+  font-weight: 600;
+  font-size: 0.92rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+.config-key-label .badge-locked {
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+.config-key-desc {
+  color: #64748b;
+  font-size: 0.78rem;
+  margin: 0 0 0.35rem;
+}
+.config-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+.config-chip {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.config-chip button.chip-remove {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  min-width: 18px;
+  min-height: 18px;
+}
+.config-chip button.chip-remove:hover { color: #dc2626; }
+.config-chip.locked { background: #f8fafc; color: #475569; }
+.config-add-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+.config-add-row input[type="text"] { flex: 1; }
+.config-add-row button {
+  white-space: nowrap;
+  padding: 0.45rem 0.9rem;
+}
+.config-input-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+.config-input-row input,
+.config-input-row select { flex: 1; }
+.config-input-row button {
+  white-space: nowrap;
+}
+.config-coordinar {
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.82rem;
+  color: #78350f;
+  margin-top: 0.3rem;
+}
+.config-mapa-pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: 0.7rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+  white-space: pre;
+  overflow-x: auto;
+  margin: 0;
+}
+.config-toast {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 5;
+  padding: 0.6rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin-bottom: 0.8rem;
+}
+.config-toast.ok    { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+.config-toast.err   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+.config-toast.warn  { background: #fef3c7; color: #78350f; border: 1px solid #fbbf24; }
+.btn-volver {
+  background: transparent;
+  border: none;
+  color: #2563eb;
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 0.5rem;
+}
