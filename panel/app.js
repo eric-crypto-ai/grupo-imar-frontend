@@ -9,8 +9,8 @@
 
   // ---------- Estado global ----------
   let TOKEN = null;
-  let CATALOGOS = null;        // {maquinas, operarios, proveedores}
-  let CONFIG_VALORES = null;   // {estados, prioridades, categorias, tipos_fallo, motivos_fallo, origen_intervencion}
+  let CATALOGOS = null;        // {maquinas, operarios, proveedores} — vía /imar/catalogos
+  let CFG = null;              // {enums, enums_duros, mapas, parametros, defaults, reglas_auto} — vía /imar/config (BKL-032 B1)
   let CACHE_LISTA = null;      // último listado cargado
   let CACHE_INC   = null;      // incidencia actual en ficha
   let CACHE_HIST  = null;      // historial de la incidencia actual
@@ -21,30 +21,6 @@
 
   const FILTRO_ACTUAL = { kind: 'activas', q: '' };
   const FILTRO_PIEZAS = { q: '', familia: '', id_maquina: '', stock_bajo: false };
-
-  // F6-B: motivos válidos por tipo de movimiento.
-  const MOTIVOS_POR_TIPO = {
-    'Entrada':    ['Compra','Devolución_proveedor','Inventario','Otro'],
-    'Salida':     ['Consumo','Roto','Inventario','Otro'],
-    'Ajuste':     ['Inventario','Otro'],
-    'Devolución': ['Devolución_proveedor','Otro'],
-  };
-
-  // Listas de enums (las leo de catálogos que vienen del workflow CATALOGOS)
-  // Nota: CATALOGOS no incluye estos enums. Los voy a leer del Sheet config con
-  // un endpoint adicional o los hardcodeo aquí (aceptable, son listas estables).
-  // Decisión: hardcodeo aquí para evitar 1 request extra, aceptando duplicación
-  // de lista cerrada. Si se cambia en config debe sincronizarse aquí.
-  const ENUMS = {
-    estados:        ['Nueva','En curso','Pendiente de pieza','Pausada','Resuelta','Finalizada','Cancelada'],
-    prioridades:    ['Baja','Media','Alta'],
-    categorias:     ['Correctivo','Preventivo','Mejora'],
-    tipos_fallo:    ['Mecánica','Eléctrica','Neumática','Hidráulica','Software/Control','Seguridad','Otra'],
-    motivos_fallo:  ['Desgaste','Rotura','Accidente','Mal uso','Limpieza','Mantenimiento','Diseño'],
-    origen_intervencion: ['Interno','Externo'],
-    // F6-A: lista cerrada de tipos y familias de pieza (ver arquitectura §3.10).
-    familias_pieza: ['Mecánica','Eléctrica','Neumática','Consumible','Fijación'],
-  };
 
   // Mapeo familia → CSS class (sin acentos para clases CSS).
   function familiaCss(f) {
@@ -171,6 +147,16 @@
     const r = await apiGet(cfg.ENDPOINTS.CATALOGOS);
     if (!r.ok || !r.data || !r.data.success) throw new Error('No se pudieron cargar catálogos');
     CATALOGOS = r.data;
+  }
+
+  // ---------- Config (BKL-032 B1) ----------
+  // Lee enums + parametros + defaults + reglas_auto del Sheet `config` vía endpoint
+  // dedicado. Cierra la deuda de fuente triple (Sheet ↔ workflows ↔ frontend).
+  // Si Eric edita una clave en el Sheet, se ve al siguiente login (sin redeploy).
+  async function cargarConfig() {
+    const r = await apiGet(cfg.ENDPOINTS.CONFIG);
+    if (!r.ok || !r.data || !r.data.success) throw new Error('No se pudo cargar config');
+    CFG = r.data;
   }
 
   function lookupMaquina(id) {
@@ -366,11 +352,11 @@
     $('ro-observaciones-op').textContent = inc.observaciones || '—';
 
     // Editables
-    poblarSelect($('ed-categoria'), ENUMS.categorias, inc.categoria);
-    poblarSelect($('ed-tipo_fallo'), ENUMS.tipos_fallo, inc.tipo_fallo);
-    poblarSelect($('ed-motivo_fallo'), ENUMS.motivos_fallo, inc.motivo_fallo, '— sin asignar —');
-    poblarSelect($('ed-prioridad'), ENUMS.prioridades, inc.prioridad, '— sin asignar —');
-    poblarSelect($('ed-estado'), ENUMS.estados, inc.estado);
+    poblarSelect($('ed-categoria'), CFG.enums.categorias, inc.categoria);
+    poblarSelect($('ed-tipo_fallo'), CFG.enums.tipos_fallo, inc.tipo_fallo);
+    poblarSelect($('ed-motivo_fallo'), CFG.enums.motivos_fallo, inc.motivo_fallo, '— sin asignar —');
+    poblarSelect($('ed-prioridad'), CFG.enums.prioridades, inc.prioridad, '— sin asignar —');
+    poblarSelect($('ed-estado'), CFG.enums.estados, inc.estado);
 
     // Origen intervencion (toggle)
     const origenActual = inc.origen_intervencion || 'Interno';
@@ -563,9 +549,9 @@
   function renderNueva() {
     showScreen('screen-nueva');
 
-    poblarSelect($('nueva-categoria'), ENUMS.categorias, 'Preventivo');
-    poblarSelect($('nueva-tipo_fallo'), ENUMS.tipos_fallo, '', '— sin asignar —');
-    poblarSelect($('nueva-prioridad'), ENUMS.prioridades, '', '— se sugiere automática —');
+    poblarSelect($('nueva-categoria'), CFG.enums.categorias, CFG.defaults.categoria_panel_nueva);
+    poblarSelect($('nueva-tipo_fallo'), CFG.enums.tipos_fallo, '', '— sin asignar —');
+    poblarSelect($('nueva-prioridad'), CFG.enums.prioridades, '', '— se sugiere automática —');
 
     // Máquinas
     const selM = $('nueva-id_maquina');
@@ -660,7 +646,7 @@
     // Familias (lista cerrada).
     const selF = $('piezas-familia');
     if (selF.options.length <= 1) {
-      ENUMS.familias_pieza.forEach((f) => {
+      CFG.enums.familias_pieza.forEach((f) => {
         const o = document.createElement('option');
         o.value = f; o.textContent = f;
         selF.appendChild(o);
@@ -889,7 +875,7 @@
 
   function poblarMotivos(tipo, current) {
     const sel = $('mov-motivo');
-    const motivos = MOTIVOS_POR_TIPO[tipo] || [];
+    const motivos = (CFG.mapas.motivos_por_tipo_movimiento[tipo] || []) || [];
     sel.innerHTML = '';
     motivos.forEach((m) => {
       const o = document.createElement('option');
@@ -930,7 +916,7 @@
     $('mov-cantidad').value = ctx.preset_cantidad || 1;
 
     // Motivos según tipo
-    poblarMotivos($('mov-tipo').value, ctx.preset_motivo || (MOTIVOS_POR_TIPO[$('mov-tipo').value] || ['Otro'])[0]);
+    poblarMotivos($('mov-tipo').value, ctx.preset_motivo || ((CFG.mapas.motivos_por_tipo_movimiento[$('mov-tipo').value]) || ['Otro'])[0]);
 
     // Poblar selector incidencias activas
     const selInc = $('mov-id_incidencia');
@@ -1348,12 +1334,12 @@
     // Hash routing
     window.addEventListener('hashchange', onHashChange);
 
-    // Auth + carga catálogos
+    // Auth + carga catálogos + config (en paralelo, BKL-032 B1)
     showScreen('screen-loading');
     const ok = await autenticar();
     if (!ok) { showScreen('screen-auth-error'); return; }
     try {
-      await cargarCatalogos();
+      await Promise.all([cargarCatalogos(), cargarConfig()]);
     } catch (e) {
       showScreen('screen-auth-error');
       $('auth-error-detalle').textContent = 'No se han podido cargar los datos. Reintenta en unos segundos.';

@@ -16,6 +16,10 @@
     return;
   }
 
+  // BKL-032 B1: parámetros y defaults vienen de /imar/config (Sheet config),
+  // no hardcoded. Se carga en paralelo a /imar/catalogos.
+  let CFG = null;
+
   // ---------- Helpers ----------
   const $ = (id) => document.getElementById(id);
   const show = (id) => { $(id).classList.remove('hidden'); };
@@ -37,25 +41,33 @@
   }
   function clearFormError() { $('form-error').classList.add('hidden'); }
 
-  // ---------- Carga de catálogos ----------
-  async function cargarCatalogos() {
-    try {
-      const r = await fetch(cfg.API_BASE + cfg.ENDPOINTS.CATALOGOS, {
-        method: 'GET',
-        headers: { ...authHeader() },
-      });
-      if (!r.ok) {
-        const txt = await r.text();
-        throw new Error('HTTP ' + r.status + ' ' + txt.slice(0, 100));
-      }
-      const data = await r.json();
-      if (!data.success) throw new Error(data.detalle || 'Respuesta inválida del servidor');
+  // ---------- Carga de catálogos + config ----------
+  async function fetchJson(endpoint) {
+    const r = await fetch(cfg.API_BASE + endpoint, {
+      method: 'GET',
+      headers: { ...authHeader() },
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      throw new Error('HTTP ' + r.status + ' ' + txt.slice(0, 100));
+    }
+    const data = await r.json();
+    if (!data.success) throw new Error(data.detalle || 'Respuesta inválida del servidor');
+    return data;
+  }
 
-      poblarSelectOperarios(data.operarios || []);
-      poblarSelectMaquinas(data.maquinas || []);
+  async function cargarDatosIniciales() {
+    try {
+      const [catalogos, configData] = await Promise.all([
+        fetchJson(cfg.ENDPOINTS.CATALOGOS),
+        fetchJson(cfg.ENDPOINTS.CONFIG),
+      ]);
+      CFG = configData;
+      poblarSelectOperarios(catalogos.operarios || []);
+      poblarSelectMaquinas(catalogos.maquinas || []);
       showOnly('screen-form');
     } catch (e) {
-      console.error('Error cargando catálogos:', e);
+      console.error('Error cargando datos iniciales:', e);
       $('error-detalle').textContent = 'No se han podido cargar los datos de planta. Comprueba conexión y reintenta.';
       showOnly('screen-error');
     }
@@ -116,7 +128,11 @@
     if (!id_operario)        { showFormError('Selecciona tu nombre.'); return null; }
     if (!id_maquina)         { showFormError('Selecciona la máquina.'); return null; }
     if (!maquina_parada)     { showFormError('Indica si la máquina está parada o no.'); return null; }
-    if (descripcion.length < 5) { showFormError('Describe el problema con un mínimo de 5 caracteres.'); return null; }
+    const minChars = (CFG && CFG.parametros && CFG.parametros.descripcion_form_min_chars) || 5;
+    if (descripcion.length < minChars) {
+      showFormError('Describe el problema con un mínimo de ' + minChars + ' caracteres.');
+      return null;
+    }
     const observaciones = f.observaciones.value.trim();
     return { id_operario, id_maquina, maquina_parada, descripcion, observaciones };
   }
@@ -183,7 +199,7 @@
 
     // Arranque
     showOnly('screen-loading');
-    cargarCatalogos();
+    cargarDatosIniciales();
   }
 
   document.addEventListener('DOMContentLoaded', init);
