@@ -354,6 +354,76 @@
     <div id="lista-piezas" class="lista-piezas"></div>
 
     <p id="piezas-vacia" class="empty hidden">No hay piezas con estos filtros.</p>
+    <button type="button" id="fab-nueva-pieza" class="fab" aria-label="Nueva pieza">+</button>
+  </section>
+
+  <!-- ========== PIEZA NUEVA (F2-C BKL-027a) ========== -->
+  <section id="screen-pieza-nueva" class="hidden">
+    <button type="button" class="back" id="btn-volver-piezas-nueva">← Piezas</button>
+    <h2>Nueva pieza</h2>
+    <p class="meta">Las listas de tipo y familia vienen de <code>config</code>. Si necesitas un valor que no aparece, añádelo primero en <code>⚙ Configuración</code>.</p>
+
+    <form id="form-nueva-pieza">
+      <div class="card">
+        <div class="field">
+          <label for="np-referencia">Referencia fabricante <span class="req">*</span></label>
+          <input type="text" id="np-referencia" required maxlength="80" placeholder="ej. 6205-2RS">
+        </div>
+        <div class="field">
+          <label for="np-descripcion">Descripción <span class="req">*</span></label>
+          <input type="text" id="np-descripcion" required minlength="3" maxlength="200" placeholder="ej. Rodamiento rígido 25x52x15">
+        </div>
+        <div class="field">
+          <label for="np-variante">Variante</label>
+          <input type="text" id="np-variante" maxlength="60" placeholder="opcional">
+        </div>
+        <div class="field">
+          <label for="np-tipo_pieza">Tipo de pieza <span class="req">*</span></label>
+          <select id="np-tipo_pieza" required></select>
+        </div>
+        <div class="field">
+          <label for="np-familia">Familia <span class="req">*</span></label>
+          <select id="np-familia" required></select>
+        </div>
+        <div class="field">
+          <label for="np-marca">Marca</label>
+          <input type="text" id="np-marca" maxlength="60" placeholder="ej. SKF, FAG…">
+        </div>
+        <div class="field">
+          <label for="np-proveedor">Proveedor principal</label>
+          <select id="np-proveedor"><option value="">— sin asignar —</option></select>
+        </div>
+        <div class="field">
+          <label for="np-ubicacion">Ubicación almacén</label>
+          <input type="text" id="np-ubicacion" maxlength="40" placeholder="ej. A1">
+        </div>
+        <div class="field">
+          <label for="np-stock_minimo">Stock mínimo</label>
+          <input type="number" id="np-stock_minimo" min="0" step="1" value="4">
+          <p class="hint">Default 4 (se puede ajustar por pieza). Refinable en F6-C.</p>
+        </div>
+        <div class="field">
+          <label for="np-precio">Precio unitario (EUR)</label>
+          <input type="number" id="np-precio" min="0" step="0.01" placeholder="opcional">
+        </div>
+        <div class="field">
+          <label for="np-stock_inicial">Stock inicial</label>
+          <input type="number" id="np-stock_inicial" min="0" step="1" value="0">
+          <p class="hint">Si > 0, se registra automáticamente como movimiento <code>Inicial</code> en el histórico.</p>
+        </div>
+        <div class="field">
+          <label for="np-notas">Notas</label>
+          <textarea id="np-notas" rows="2" maxlength="400" placeholder="opcional"></textarea>
+        </div>
+      </div>
+
+      <div id="np-error" class="error-msg hidden"></div>
+
+      <div class="acciones-stock">
+        <button type="button" id="btn-cancelar-nueva-pieza" class="secondary">Cancelar</button>
+        <button type="submit" id="btn-crear-pieza">Crear pieza</button>
+      </div>
+    </form>
   </section>
 
   <!-- ========== PIEZA — ficha (F6-A) ========== -->
@@ -368,6 +438,31 @@
       <div class="pieza-tipo-badges">
         <span class="badge" id="pieza-tipo-badge">·</span>
         <span class="badge familia" id="pieza-familia-badge">·</span>
+      </div>
+      <button type="button" id="btn-editar-pieza" class="secondary" style="margin-top:0.6rem;">✎ Editar pieza</button>
+    </div>
+
+    <!-- Modal de edición de pieza (BKL-027a) -->
+    <div id="modal-editar-pieza" class="modal hidden" role="dialog" aria-labelledby="modal-ed-pieza-title">
+      <div class="modal-card">
+        <h3 id="modal-ed-pieza-title">Editar pieza</h3>
+        <p class="meta" id="modal-ed-pieza-id">·</p>
+        <div class="field"><label>Descripción</label><input type="text" id="ep-descripcion" maxlength="200"></div>
+        <div class="field"><label>Variante</label><input type="text" id="ep-variante" maxlength="60"></div>
+        <div class="field"><label>Tipo de pieza</label><select id="ep-tipo_pieza"></select></div>
+        <div class="field"><label>Familia</label><select id="ep-familia"></select></div>
+        <div class="field"><label>Marca</label><input type="text" id="ep-marca" maxlength="60"></div>
+        <div class="field"><label>Proveedor principal</label><select id="ep-proveedor"><option value="">— sin asignar —</option></select></div>
+        <div class="field"><label>Ubicación almacén</label><input type="text" id="ep-ubicacion" maxlength="40"></div>
+        <div class="field"><label>Stock mínimo</label><input type="number" id="ep-stock_minimo" min="0" step="1"></div>
+        <div class="field"><label>Precio unitario (EUR)</label><input type="number" id="ep-precio" min="0" step="0.01"></div>
+        <div class="field"><label>Activa</label><select id="ep-activa"><option value="Sí">Sí</option><option value="No">No</option></select></div>
+        <div class="field"><label>Notas</label><textarea id="ep-notas" rows="2" maxlength="400"></textarea></div>
+        <div id="ep-error" class="error-msg hidden"></div>
+        <div class="modal-actions">
+          <button type="button" id="btn-ep-cancelar" class="secondary">Cancelar</button>
+          <button type="button" id="btn-ep-guardar">Guardar</button>
+        </div>
       </div>
     </div>
 

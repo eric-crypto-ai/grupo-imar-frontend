@@ -35,7 +35,7 @@
   function show(id) { $(id).classList.remove('hidden'); }
   function hide(id) { $(id).classList.add('hidden'); }
 
-  const SCREENS = ['screen-loading', 'screen-auth-error', 'screen-lista', 'screen-ficha', 'screen-nueva', 'screen-piezas', 'screen-pieza', 'screen-config'];
+  const SCREENS = ['screen-loading', 'screen-auth-error', 'screen-lista', 'screen-ficha', 'screen-nueva', 'screen-piezas', 'screen-pieza', 'screen-pieza-nueva', 'screen-config'];
   function showScreen(id) {
     SCREENS.forEach((s) => (s === id ? show(s) : hide(s)));
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -171,6 +171,7 @@
     const h = (window.location.hash || '#/lista').slice(1);
     if (h === '/nueva') return { route: 'nueva' };
     if (h === '/piezas') return { route: 'piezas' };
+    if (h === '/piezas/nueva') return { route: 'pieza-nueva' };
     if (h === '/pedidos-pieza') return { route: 'pedidos' };
     if (h === '/config') return { route: 'config' };
     const mInc = h.match(/^\/incidencia\/([^/?]+)$/);
@@ -198,6 +199,8 @@
       const cb = $('piezas-stock-bajo'); if (cb) cb.checked = true;
     } else if (r.route === 'pieza') {
       await renderPieza(r.id);
+    } else if (r.route === 'pieza-nueva') {
+      renderPiezaNueva();
     } else if (r.route === 'config') {
       await renderConfig();
     } else {
@@ -1279,6 +1282,22 @@
     const btnVolverCfg = $('btn-volver-config');
     if (btnVolverCfg) btnVolverCfg.addEventListener('click', () => navigate('/lista'));
 
+    // Piezas — alta y edición (BKL-027a)
+    const fabPz = $('fab-nueva-pieza');
+    if (fabPz) fabPz.addEventListener('click', () => navigate('/piezas/nueva'));
+    const btnVolverPzN = $('btn-volver-piezas-nueva');
+    if (btnVolverPzN) btnVolverPzN.addEventListener('click', () => navigate('/piezas'));
+    const btnCancelarNvPz = $('btn-cancelar-nueva-pieza');
+    if (btnCancelarNvPz) btnCancelarNvPz.addEventListener('click', () => navigate('/piezas'));
+    const formNvPz = $('form-nueva-pieza');
+    if (formNvPz) formNvPz.addEventListener('submit', crearPieza);
+    const btnEditPz = $('btn-editar-pieza');
+    if (btnEditPz) btnEditPz.addEventListener('click', abrirEditarPieza);
+    const btnEpCancel = $('btn-ep-cancelar');
+    if (btnEpCancel) btnEpCancel.addEventListener('click', cerrarEditarPieza);
+    const btnEpGuardar = $('btn-ep-guardar');
+    if (btnEpGuardar) btnEpGuardar.addEventListener('click', guardarEdicionPieza);
+
     // Piezas — listado
     $('piezas-busqueda').addEventListener('input', debounce(() => {
       FILTRO_PIEZAS.q = $('piezas-busqueda').value.trim();
@@ -1697,6 +1716,154 @@
   function onSetParametro(clave, valor) {
     if (!confirm('Cambiar ' + clave + ' a "' + valor + '"?')) return;
     applyConfigPatch({ clave, operacion: 'set', valor_nuevo: valor });
+  }
+
+  // ---------- Piezas — alta y edición (BKL-027a) ----------
+  function poblarSelectListaPieza(sel, items, defaultVal) {
+    if (!sel) return;
+    sel.innerHTML = '';
+    if (defaultVal === '' || defaultVal == null) {
+      const op = document.createElement('option');
+      op.value = ''; op.textContent = '— selecciona —';
+      sel.appendChild(op);
+    }
+    (items || []).forEach((v) => {
+      const op = document.createElement('option');
+      op.value = v; op.textContent = v;
+      if (v === defaultVal) op.selected = true;
+      sel.appendChild(op);
+    });
+  }
+  function poblarSelectProveedoresPieza(sel, defaultId) {
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— sin asignar —</option>';
+    const provs = (CATALOGOS && CATALOGOS.proveedores) || [];
+    provs.forEach((p) => {
+      const o = document.createElement('option');
+      o.value = p.id_proveedor;
+      o.textContent = p.nombre + (p.especialidad ? ' · ' + p.especialidad : '');
+      if (p.id_proveedor === defaultId) o.selected = true;
+      sel.appendChild(o);
+    });
+  }
+
+  function renderPiezaNueva() {
+    showScreen('screen-pieza-nueva');
+    poblarSelectListaPieza($('np-tipo_pieza'), CFG.enums.tipos_pieza, '');
+    poblarSelectListaPieza($('np-familia'), CFG.enums.familias_pieza, '');
+    poblarSelectProveedoresPieza($('np-proveedor'), '');
+    // Reset campos a default
+    ['np-referencia','np-descripcion','np-variante','np-marca','np-ubicacion','np-precio','np-notas'].forEach((id) => {
+      const el = $(id); if (el) el.value = '';
+    });
+    const sm = $('np-stock_minimo'); if (sm) sm.value = (CFG.parametros && CFG.parametros.stock_minimo_default) || 4;
+    const si = $('np-stock_inicial'); if (si) si.value = 0;
+    hide('np-error');
+  }
+
+  async function crearPieza(e) {
+    e.preventDefault();
+    hide('np-error');
+    const body = {
+      referencia_fabricante: $('np-referencia').value.trim(),
+      descripcion: $('np-descripcion').value.trim(),
+      variante: $('np-variante').value.trim(),
+      tipo_pieza: $('np-tipo_pieza').value,
+      familia: $('np-familia').value,
+      marca: $('np-marca').value.trim(),
+      proveedor_principal_id: $('np-proveedor').value,
+      ubicacion_almacen: $('np-ubicacion').value.trim(),
+      stock_minimo: parseInt($('np-stock_minimo').value, 10) || 0,
+      precio_unitario: $('np-precio').value !== '' ? parseFloat($('np-precio').value) : '',
+      stock_inicial: parseInt($('np-stock_inicial').value, 10) || 0,
+      notas: $('np-notas').value.trim(),
+    };
+    // Validación cliente mínima (la real es servidor)
+    if (!body.referencia_fabricante) return showInlineErr('np-error','Falta referencia_fabricante');
+    if (!body.descripcion) return showInlineErr('np-error','Falta descripción');
+    if (!body.tipo_pieza) return showInlineErr('np-error','Selecciona tipo de pieza');
+    if (!body.familia) return showInlineErr('np-error','Selecciona familia');
+
+    try {
+      const r = await fetch(cfg.API_BASE + cfg.ENDPOINTS.PIEZA_CREATE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
+        body: JSON.stringify(body),
+      });
+      const data = await r.json();
+      if (r.ok && data.success) {
+        toast('Pieza creada: ' + data.id_pieza + (data.id_movimiento_inicial ? ' (+ stock inicial registrado)' : ''), 'ok');
+        navigate('/pieza/' + encodeURIComponent(data.id_pieza));
+      } else {
+        showInlineErr('np-error', data.detalle || data.error || ('HTTP ' + r.status));
+      }
+    } catch (e) {
+      showInlineErr('np-error', 'Error de red: ' + e.message);
+    }
+  }
+
+  function showInlineErr(id, msg) {
+    const el = $(id); if (!el) return;
+    el.textContent = msg;
+    el.classList.remove('hidden');
+  }
+
+  function abrirEditarPieza() {
+    if (!CACHE_PIEZA || !CACHE_PIEZA.pieza) return;
+    const p = CACHE_PIEZA.pieza;
+    $('modal-ed-pieza-id').textContent = p.id_pieza + ' · ' + (p.referencia_fabricante || '');
+    poblarSelectListaPieza($('ep-tipo_pieza'), CFG.enums.tipos_pieza, p.tipo_pieza);
+    poblarSelectListaPieza($('ep-familia'), CFG.enums.familias_pieza, p.familia);
+    poblarSelectProveedoresPieza($('ep-proveedor'), p.proveedor_principal_id);
+    $('ep-descripcion').value = p.descripcion || '';
+    $('ep-variante').value = p.variante || '';
+    $('ep-marca').value = p.marca || '';
+    $('ep-ubicacion').value = p.ubicacion_almacen || '';
+    $('ep-stock_minimo').value = p.stock_minimo != null ? p.stock_minimo : '';
+    $('ep-precio').value = p.precio_unitario != null && p.precio_unitario !== '' ? p.precio_unitario : '';
+    $('ep-activa').value = p.activa || 'Sí';
+    $('ep-notas').value = p.notas || '';
+    hide('ep-error');
+    show('modal-editar-pieza');
+  }
+  function cerrarEditarPieza() { hide('modal-editar-pieza'); }
+
+  async function guardarEdicionPieza() {
+    if (!CACHE_PIEZA || !CACHE_PIEZA.pieza) return;
+    hide('ep-error');
+    const id = CACHE_PIEZA.pieza.id_pieza;
+    const body = {
+      descripcion: $('ep-descripcion').value.trim(),
+      variante: $('ep-variante').value.trim(),
+      tipo_pieza: $('ep-tipo_pieza').value,
+      familia: $('ep-familia').value,
+      marca: $('ep-marca').value.trim(),
+      proveedor_principal_id: $('ep-proveedor').value,
+      ubicacion_almacen: $('ep-ubicacion').value.trim(),
+      stock_minimo: parseInt($('ep-stock_minimo').value, 10) || 0,
+      precio_unitario: $('ep-precio').value !== '' ? parseFloat($('ep-precio').value) : '',
+      activa: $('ep-activa').value,
+      notas: $('ep-notas').value.trim(),
+    };
+    try {
+      const r = await fetch(cfg.API_BASE + cfg.ENDPOINTS.PIEZA_UPDATE + '?id=' + encodeURIComponent(id), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
+        body: JSON.stringify(body),
+      });
+      const data = await r.json();
+      if (r.ok && data.success) {
+        toast('Pieza ' + id + ' actualizada (' + (data.cambios || []).length + ' campos)', 'ok');
+        cerrarEditarPieza();
+        await renderPieza(id);
+      } else if (r.status === 409 && data.error === 'en_uso') {
+        showInlineErr('ep-error', 'No se puede desactivar — stock_actual=' + data.stock_actual + '. ' + (data.hint || ''));
+      } else {
+        showInlineErr('ep-error', data.detalle || data.error || ('HTTP ' + r.status));
+      }
+    } catch (e) {
+      showInlineErr('ep-error', 'Error de red: ' + e.message);
+    }
   }
 
   document.addEventListener('DOMContentLoaded', init);

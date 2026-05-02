@@ -20,9 +20,11 @@ window.IMAR_PANEL_CONFIG = {
     PIEZAS_LIST: '/webhook/imar/panel/piezas',         // F6-A · GET listado
     PIEZA_GET:   '/webhook/imar/panel/pieza',          // F6-A · GET ?id=
     PIEZA_MOVIMIENTO: '/webhook/imar/panel/pieza/movimiento', // F6-B · POST registrar movimiento
+    PIEZA_CREATE: '/webhook/imar/panel/pieza',                // F2-C · BKL-027a · POST crear pieza
+    PIEZA_UPDATE: '/webhook/imar/panel/pieza',                // F2-C · BKL-027a · PATCH ?id=
   },
   LS_TOKEN_KEY: 'imar_panel_token',
-  VERSION: '0.6.0',
+  VERSION: '0.7.0',
   // localStorage key para el token de Eric (X-Imar-Force-Hard-Enum). No se distribuye en código.
   // Eric lo guarda manualmente con `localStorage.setItem('imar_force_hard_token','<valor>')` desde DevTools.
   LS_FORCE_HARD_KEY: 'imar_force_hard_token',
