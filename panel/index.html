@@ -6,6 +6,32 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#1d2942">
   <title>Intralogik — Panel · Grupo Imar</title>
+  <!--
+    <base> dinámico: necesario para que los assets relativos (styles.css,
+    app.js, etc.) se resuelvan correctamente sea cual sea el dominio
+    desde el que se sirva el panel.
+
+    - github.io/grupo-imar-frontend/panel/  → base = ese mismo path
+    - intralogik.com/demo  o  /demo/         → base = "/demo/"
+
+    Sin esto, intralogik.com/demo (sin slash final) interpreta
+    "styles.css" como "/styles.css" (raíz) y el panel queda sin estilos.
+    Tiene que ir antes de cualquier <link> o <script> que use rutas
+    relativas.
+  -->
+  <script>
+    (function () {
+      var b = document.createElement('base');
+      var h = location.hostname;
+      if (h === 'www.intralogik.com' || h === 'intralogik.com') {
+        b.href = '/demo/';
+      } else {
+        // GitHub Pages u otro: base = directorio actual de la página.
+        b.href = location.pathname.replace(/[^/]*$/, '');
+      }
+      document.head.appendChild(b);
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap">
