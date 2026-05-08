@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Intralogik — Panel</title>
+  <!--
+    Redirección a /panel/ preservando ?k= y #hash. La raíz del repo no sirve
+    contenido propio: el panel vive en /panel/ y el form en /form-validacion/.
+    Quien entra a panel.intralogik.com/ asume que viene a por el panel — es el
+    caso normal — así que lo redirigimos allí.
+
+    Se usa replace() en lugar de href para que el back del navegador no quede
+    pegado en este HTML intermedio. Y JS en lugar de meta-refresh porque
+    meta-refresh PIERDE el querystring (necesitamos preservar ?k=TOKEN).
+  -->
+  <script>
+    (function () {
+      var dest = '/panel/' + (location.search || '') + (location.hash || '');
+      location.replace(dest);
+    })();
+  </script>
+</head>
+<body>
+  <p style="font-family: system-ui, sans-serif; padding: 2rem; color: #555;">
+    Redirigiendo al panel… si no se carga automáticamente,
+    <a href="/panel/">pulsa aquí</a>.
+  </p>
+</body>
+</html>
