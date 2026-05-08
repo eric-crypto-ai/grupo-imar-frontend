@@ -24,7 +24,7 @@ window.IMAR_PANEL_CONFIG = {
     PIEZA_UPDATE: '/webhook/imar/panel/pieza',                // F2-C · BKL-027a · PATCH ?id=
   },
   LS_TOKEN_KEY: 'imar_panel_token',
-  VERSION: '0.7.0',
+  VERSION: '0.7.1',
   // localStorage key para el token de Eric (X-Imar-Force-Hard-Enum). No se distribuye en código.
   // Eric lo guarda manualmente con `localStorage.setItem('imar_force_hard_token','<valor>')` desde DevTools.
   LS_FORCE_HARD_KEY: 'imar_force_hard_token',

@@ -4,18 +4,26 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="robots" content="noindex, nofollow">
-  <meta name="theme-color" content="#0d47a1">
-  <title>Panel — Grupo Imar</title>
+  <meta name="theme-color" content="#1d2942">
+  <title>Intralogik — Panel · Grupo Imar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap">
   <!-- Cache-busting: bump ?v= en los 3 enlaces (styles, config, app) al hacer release. Coordinar con VERSION de config.js. -->
-  <link rel="stylesheet" href="styles.css?v=0.4.1">
+  <link rel="stylesheet" href="styles.css?v=0.7.1">
 </head>
 <body>
 
 <main>
 
   <header>
-    <h1>Panel mantenimiento</h1>
-    <span class="subtitle">Edwin · Grupo Imar</span>
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-text">
+        <h1>Intralogik</h1>
+        <span class="subtitle">Panel · Grupo Imar</span>
+      </span>
+    </div>
   </header>
 
   <!-- ========== NAV PRINCIPAL (incidencias / piezas / config) ========== -->
@@ -650,13 +658,13 @@
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <footer>
-    Grupo Imar · Panel · v<span id="ver"></span>
+    Intralogik para Grupo Imar · v<span id="ver"></span>
   </footer>
 
 </main>
 
-<script src="config.js?v=0.4.1"></script>
-<script src="app.js?v=0.4.1"></script>
+<script src="config.js?v=0.7.1"></script>
+<script src="app.js?v=0.7.1"></script>
 
 </body>
 </html>
