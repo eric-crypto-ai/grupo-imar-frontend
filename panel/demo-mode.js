@@ -1,32 +1,38 @@
 // demo-mode.js — Modo demo del panel.
 //
-// Activación: añade ?demo=1 a la URL. Se persiste en localStorage para
-// que las navegaciones internas no pierdan el modo. Salir: botón del banner.
+// Activación (dos vías, sin persistir entre sesiones):
+//   1) querystring ?demo=1 — uso manual, dura sólo mientras el qs esté en
+//      la URL. Si recargas sin él, vuelve al modo real. Útil para probar
+//      el demo desde el panel real sin contaminar el login de Edwin.
+//   2) path /demo — usado por el rewrite Vercel intralogik.com/demo. Se
+//      detecta en cada carga, así que sigue activo mientras el visitante
+//      navegue dentro del path /demo.
 //
 // Funciona interceptando window.fetch ANTES de que se cargue app.js, así que
 // el panel real no se modifica — sigue creyendo que habla con el backend n8n.
 //
 // NUNCA toca Sheets, ni n8n, ni los tokens reales de Grupo Imar.
+//
+// Histórico: en versiones <= 0.7.1 el modo demo se persistía en localStorage
+// con la idea de "no perderlo entre navegaciones". Eso atrapaba a Edwin: si
+// alguna vez se entraba al panel real con ?demo=1, el flag quedaba pegado y
+// las visitas posteriores activaban el demo aunque la URL fuera la de
+// producción. Eliminada la persistencia en 0.7.2.
 
 (function () {
   'use strict';
 
-  const LS_KEY = 'imar_panel_demo';
+  // Limpieza one-shot del flag persistido por versiones <= 0.7.1. Sin esto,
+  // los navegadores que tengan imar_panel_demo=1 en localStorage seguirían
+  // viendo el modo demo en el panel real al recargar tras desplegar 0.7.2.
+  localStorage.removeItem('imar_panel_demo');
+
   const url = new URL(window.location.href);
-  const flagInUrl   = url.searchParams.get('demo') === '1';
-  const flagInLs    = localStorage.getItem(LS_KEY) === '1';
-  // Cuando el panel se sirve bajo intralogik.com/demo (vía Vercel rewrite),
-  // se activa el modo demo automáticamente — sin query string ni alta.
-  const flagInPath  = /(^|\/)demo(\/|$)/.test(window.location.pathname);
+  const flagInUrl  = url.searchParams.get('demo') === '1';
+  const flagInPath = /(^|\/)demo(\/|$)/.test(window.location.pathname);
 
-  if (!flagInUrl && !flagInLs && !flagInPath) return;
+  if (!flagInUrl && !flagInPath) return;
 
-  // Persistir y limpiar la URL para que sea compartible sin querystring.
-  if (flagInUrl) {
-    localStorage.setItem(LS_KEY, '1');
-    url.searchParams.delete('demo');
-    window.history.replaceState({}, '', url.pathname + (url.hash || ''));
-  }
   window.IMAR_DEMO = true;
 
   // Bypass de auth — el panel real busca un token en localStorage; le damos
@@ -131,10 +137,13 @@
     `;
     document.body.insertBefore(b, document.body.firstChild);
     document.getElementById('demo-salir').addEventListener('click', () => {
-      localStorage.removeItem(LS_KEY);
+      // Defensa en profundidad: limpia el residuo de versiones <= 0.7.1
+      // donde el flag se persistía y podía atrapar al panel real.
+      localStorage.removeItem('imar_panel_demo');
       localStorage.removeItem('imar_panel_token');
       // Si el path contiene /demo (intralogik.com/demo), redirige a la home
-      // del producto. Si está en github.io o en otro contexto, recarga.
+      // del producto. Si está en github.io o en otro contexto, recarga al
+      // pathname (sin querystring) para que ?demo=1 no resucite el modo.
       if (/(^|\/)demo(\/|$)/.test(window.location.pathname)) {
         window.location.href = 'https://www.intralogik.com/';
       } else {
