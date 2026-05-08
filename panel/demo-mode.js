@@ -13,10 +13,13 @@
 
   const LS_KEY = 'imar_panel_demo';
   const url = new URL(window.location.href);
-  const flagInUrl = url.searchParams.get('demo') === '1';
-  const flagInLs  = localStorage.getItem(LS_KEY) === '1';
+  const flagInUrl   = url.searchParams.get('demo') === '1';
+  const flagInLs    = localStorage.getItem(LS_KEY) === '1';
+  // Cuando el panel se sirve bajo intralogik.com/demo (vía Vercel rewrite),
+  // se activa el modo demo automáticamente — sin query string ni alta.
+  const flagInPath  = /(^|\/)demo(\/|$)/.test(window.location.pathname);
 
-  if (!flagInUrl && !flagInLs) return;
+  if (!flagInUrl && !flagInLs && !flagInPath) return;
 
   // Persistir y limpiar la URL para que sea compartible sin querystring.
   if (flagInUrl) {
@@ -130,7 +133,13 @@
     document.getElementById('demo-salir').addEventListener('click', () => {
       localStorage.removeItem(LS_KEY);
       localStorage.removeItem('imar_panel_token');
-      window.location.href = window.location.pathname;
+      // Si el path contiene /demo (intralogik.com/demo), redirige a la home
+      // del producto. Si está en github.io o en otro contexto, recarga.
+      if (/(^|\/)demo(\/|$)/.test(window.location.pathname)) {
+        window.location.href = 'https://www.intralogik.com/';
+      } else {
+        window.location.href = window.location.pathname;
+      }
     });
   }
   if (document.readyState === 'loading') {
