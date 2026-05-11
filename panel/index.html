@@ -89,6 +89,17 @@
           <button data-filter="cerradas" aria-pressed="false">Cerradas</button>
         </div>
         <input type="search" id="busqueda" placeholder="Buscar por ID o descripción…" aria-label="Buscar">
+        <div class="filtros-row">
+          <select id="filtro-estado" aria-label="Estado">
+            <option value="">Todos los estados</option>
+          </select>
+          <select id="filtro-maquina" aria-label="Máquina">
+            <option value="">Todas las máquinas</option>
+          </select>
+        </div>
+        <button type="button" id="chip-urgentes" class="chip-filtro" aria-pressed="false" aria-label="Solo urgentes">
+          <span aria-hidden="true">⚡</span> Solo urgentes
+        </button>
         <button type="button" class="secondary" id="btn-refresh">↻ Refrescar</button>
       </div>
       <p id="lista-meta" class="meta"></p>

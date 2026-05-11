@@ -829,6 +829,36 @@ footer {
   accent-color: var(--color-primary);
 }
 
+/* Chip de filtro tipo pill (BKL-031 — "Solo urgentes" en lista de incidencias). */
+.chip-filtro {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  align-self: flex-start;
+  min-height: 36px;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-soft);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.chip-filtro[aria-pressed="true"] {
+  background: var(--color-danger, #b91c1c);
+  color: #fff;
+  border-color: var(--color-danger, #b91c1c);
+}
+.chip-filtro:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 /* ============================================================
    LISTA DE PIEZAS (F6-A)
    ============================================================ */

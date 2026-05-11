@@ -19,8 +19,12 @@
   let CACHE_PIEZA = null;         // pieza actual en ficha (F6-A)
   let MODAL_MOV_CTX = null;       // contexto al abrir modal: { id_pieza, source: 'pieza'|'incidencia', id_incidencia? }
 
-  const FILTRO_ACTUAL = { kind: 'activas', q: '' };
+  const FILTRO_ACTUAL = { kind: 'activas', q: '', estado: '', id_maquina: '', solo_urgentes: false };
   const FILTRO_PIEZAS = { q: '', familia: '', id_maquina: '', stock_bajo: false };
+
+  // Prioridades consideradas "urgentes" para el chip de filtro rápido.
+  // Reagrupa lo que está parando producción o a punto de pararla; se combina con maquina_parada='Sí'.
+  const PRIORIDADES_URGENTES = ['Parada de línea', 'Riesgo de parada'];
 
   // Mapeo familia → CSS class (sin acentos para clases CSS).
   function familiaCss(f) {
@@ -209,8 +213,49 @@
   }
 
   // ---------- Lista ----------
+  function poblarFiltrosLista() {
+    // Estados (lista cerrada desde CFG.enums.estados).
+    const selE = $('filtro-estado');
+    if (selE && selE.options.length <= 1 && CFG && CFG.enums && Array.isArray(CFG.enums.estados)) {
+      CFG.enums.estados.forEach((e) => {
+        const o = document.createElement('option');
+        o.value = e; o.textContent = e;
+        selE.appendChild(o);
+      });
+    }
+    // Máquinas (catálogo).
+    const selM = $('filtro-maquina');
+    if (selM && selM.options.length <= 1 && CATALOGOS && Array.isArray(CATALOGOS.maquinas)) {
+      CATALOGOS.maquinas.forEach((m) => {
+        const o = document.createElement('option');
+        o.value = m.id_maquina;
+        o.textContent = m.nombre + (m.departamento ? ' (' + m.departamento + ')' : '');
+        selM.appendChild(o);
+      });
+    }
+  }
+
+  // Filtros client-side aplicados sobre CACHE_LISTA antes de pintar.
+  // Servidor sigue resolviendo tab + q; el resto se compone aquí (AND).
+  function aplicarFiltrosCliente(items) {
+    let out = items;
+    if (FILTRO_ACTUAL.estado) {
+      out = out.filter((it) => it.estado === FILTRO_ACTUAL.estado);
+    }
+    if (FILTRO_ACTUAL.id_maquina) {
+      out = out.filter((it) => it.id_maquina === FILTRO_ACTUAL.id_maquina);
+    }
+    if (FILTRO_ACTUAL.solo_urgentes) {
+      out = out.filter((it) =>
+        it.maquina_parada === 'Sí' || PRIORIDADES_URGENTES.includes(it.prioridad)
+      );
+    }
+    return out;
+  }
+
   async function renderLista() {
     showScreen('screen-lista');
+    poblarFiltrosLista();
     $('lista-meta').textContent = 'Cargando…';
     $('lista-incidencias').innerHTML = '';
     hide('lista-vacia');
@@ -231,16 +276,22 @@
       return;
     }
     CACHE_LISTA = r.data.items || [];
-    $('lista-meta').textContent = `${r.data.returned} de ${r.data.total} incidencias`;
 
-    if (CACHE_LISTA.length === 0) {
+    const visibles = aplicarFiltrosCliente(CACHE_LISTA);
+    const totalServidor = r.data.total;
+    const usaFiltrosCliente = visibles.length !== CACHE_LISTA.length;
+    $('lista-meta').textContent = usaFiltrosCliente
+      ? `${visibles.length} de ${CACHE_LISTA.length} (${totalServidor} en total)`
+      : `${r.data.returned} de ${totalServidor} incidencias`;
+
+    if (visibles.length === 0) {
       show('lista-vacia');
       return;
     }
 
     const cont = $('lista-incidencias');
     cont.innerHTML = '';
-    CACHE_LISTA.forEach((it) => cont.appendChild(renderTarjeta(it)));
+    visibles.forEach((it) => cont.appendChild(renderTarjeta(it)));
   }
 
   function renderTarjeta(it) {
@@ -1230,6 +1281,24 @@
       renderLista();
     }, 350));
     $('btn-refresh').addEventListener('click', () => renderLista());
+
+    // BKL-031: filtros lista (estado + máquina + urgentes) — client-side sobre CACHE_LISTA.
+    const selEstado = $('filtro-estado');
+    if (selEstado) selEstado.addEventListener('change', () => {
+      FILTRO_ACTUAL.estado = selEstado.value;
+      renderLista();
+    });
+    const selMaq = $('filtro-maquina');
+    if (selMaq) selMaq.addEventListener('change', () => {
+      FILTRO_ACTUAL.id_maquina = selMaq.value;
+      renderLista();
+    });
+    const chipUrg = $('chip-urgentes');
+    if (chipUrg) chipUrg.addEventListener('click', () => {
+      FILTRO_ACTUAL.solo_urgentes = !FILTRO_ACTUAL.solo_urgentes;
+      chipUrg.setAttribute('aria-pressed', FILTRO_ACTUAL.solo_urgentes ? 'true' : 'false');
+      renderLista();
+    });
 
     // Volver a lista
     $('btn-volver-lista').addEventListener('click', () => navigate('/lista'));
