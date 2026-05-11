@@ -1234,3 +1234,76 @@ code {
     scroll-behavior: auto !important;
   }
 }
+
+/* ============================================================
+   F-AUTH A3 — Login / Cambio password
+   ============================================================ */
+.auth-screen {
+  max-width: 22rem;
+  margin: 2rem auto;
+}
+.auth-screen .auth-title {
+  margin: 0 0 0.25rem;
+  font-size: 1.25rem;
+}
+.auth-screen .auth-subtitle {
+  margin: 0 0 1rem;
+  color: var(--color-text-soft, #6b6b6b);
+  font-size: 0.9rem;
+}
+.auth-screen .auth-hint {
+  margin: 1rem 0 0;
+  color: var(--color-text-soft, #6b6b6b);
+  font-size: 0.8rem;
+  text-align: center;
+}
+.auth-screen .campo { margin-bottom: 0.85rem; }
+.auth-screen .campo label {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+  font-weight: 500;
+}
+.auth-screen .campo input {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  font-size: 1rem;
+  border: 1px solid var(--color-border, #d4d4d4);
+  border-radius: 6px;
+  background: var(--color-input-bg, #fff);
+  color: inherit;
+  box-sizing: border-box;
+}
+.auth-screen .campo input:focus {
+  outline: none;
+  border-color: var(--color-primary, #2563eb);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+.auth-error {
+  color: var(--color-danger, #c53030);
+  background: rgba(197, 48, 48, 0.08);
+  border: 1px solid rgba(197, 48, 48, 0.25);
+  padding: 0.5rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  margin: 0.25rem 0 0.75rem;
+}
+button.block { display: block; width: 100%; margin-top: 0.5rem; }
+button.link-button {
+  background: transparent;
+  border: none;
+  color: var(--color-primary, #2563eb);
+  padding: 0.5rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  width: 100%;
+  text-align: center;
+  margin-top: 0.5rem;
+}
+button.link-button:hover { text-decoration: underline; }
+.header-logout {
+  width: auto !important;
+  margin: 0 !important;
+  padding: 0.4rem 0.7rem !important;
+  font-size: 0.8rem !important;
+}

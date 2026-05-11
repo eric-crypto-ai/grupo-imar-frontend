@@ -50,6 +50,7 @@
         <span class="subtitle">Panel · Grupo Imar</span>
       </span>
     </div>
+    <button id="btn-logout" type="button" class="link-button header-logout hidden" aria-label="Cerrar sesión">Cerrar sesión</button>
   </header>
 
   <!-- ========== NAV PRINCIPAL (incidencias / piezas / config) ========== -->
@@ -77,6 +78,49 @@
       <h2>Acceso denegado</h2>
       <p id="auth-error-detalle">Esta URL no es válida o ha caducado. Pídele a Eric un enlace nuevo.</p>
     </div>
+  </section>
+
+  <!-- ========== LOGIN (F-AUTH A3) ========== -->
+  <section id="screen-login" class="card hidden auth-screen">
+    <h2 class="auth-title">Acceso al panel</h2>
+    <p class="auth-subtitle">Introduce tus credenciales.</p>
+    <form id="form-login" autocomplete="on" novalidate>
+      <div class="campo">
+        <label for="login-usuario">Usuario</label>
+        <input id="login-usuario" name="usuario" type="text" autocomplete="username"
+               autocapitalize="none" autocorrect="off" spellcheck="false" required />
+      </div>
+      <div class="campo">
+        <label for="login-password">Contraseña</label>
+        <input id="login-password" name="password" type="password" autocomplete="current-password" required />
+      </div>
+      <p id="login-error" class="auth-error hidden" role="alert"></p>
+      <button id="btn-login" type="submit" class="primary block">Entrar</button>
+    </form>
+    <p class="auth-hint">¿No puedes entrar? Pídele a tu administrador que te resetee la contraseña.</p>
+  </section>
+
+  <!-- ========== CAMBIO PASSWORD (forzado si tmp_pwd, voluntario si no) ========== -->
+  <section id="screen-cambio-password" class="card hidden auth-screen">
+    <h2 class="auth-title">Cambiar contraseña</h2>
+    <p id="chgpwd-hint" class="auth-subtitle">Define una nueva contraseña.</p>
+    <form id="form-chgpwd" autocomplete="off" novalidate>
+      <div class="campo">
+        <label for="chgpwd-actual">Contraseña actual</label>
+        <input id="chgpwd-actual" name="password_actual" type="password" autocomplete="current-password" required />
+      </div>
+      <div class="campo">
+        <label for="chgpwd-nueva">Nueva contraseña</label>
+        <input id="chgpwd-nueva" name="password_nueva" type="password" autocomplete="new-password" minlength="8" required />
+      </div>
+      <div class="campo">
+        <label for="chgpwd-repetir">Repite la nueva</label>
+        <input id="chgpwd-repetir" name="password_nueva_repeat" type="password" autocomplete="new-password" minlength="8" required />
+      </div>
+      <p id="chgpwd-error" class="auth-error hidden" role="alert"></p>
+      <button id="btn-chgpwd" type="submit" class="primary block">Guardar</button>
+      <button id="btn-logout-chgpwd" type="button" class="link-button">Cerrar sesión</button>
+    </form>
   </section>
 
   <!-- ========== LISTA ========== -->

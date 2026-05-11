@@ -9,6 +9,7 @@
 
   // ---------- Estado global ----------
   let TOKEN = null;
+  let SESSION = null;          // {id_usuario, nombre, usuario, role, tmp_pwd, exp, mode:'jwt'|'panel_key'}
   let CATALOGOS = null;        // {maquinas, operarios, proveedores} — vía /imar/catalogos
   let CFG = null;              // {enums, enums_duros, mapas, parametros, defaults, reglas_auto} — vía /imar/config (BKL-032 B1)
   let CACHE_LISTA = null;      // último listado cargado
@@ -39,11 +40,20 @@
   function show(id) { $(id).classList.remove('hidden'); }
   function hide(id) { $(id).classList.add('hidden'); }
 
-  const SCREENS = ['screen-loading', 'screen-auth-error', 'screen-lista', 'screen-ficha', 'screen-nueva', 'screen-piezas', 'screen-pieza', 'screen-pieza-nueva', 'screen-config'];
+  const SCREENS = ['screen-loading', 'screen-auth-error', 'screen-login', 'screen-cambio-password', 'screen-lista', 'screen-ficha', 'screen-nueva', 'screen-piezas', 'screen-pieza', 'screen-pieza-nueva', 'screen-config'];
   function showScreen(id) {
     SCREENS.forEach((s) => (s === id ? show(s) : hide(s)));
     window.scrollTo({ top: 0, behavior: 'instant' });
     syncNavPrincipal(id);
+    syncHeaderLogout(id);
+  }
+
+  function syncHeaderLogout(id) {
+    const btn = $('btn-logout'); if (!btn) return;
+    // Mostrar solo si hay sesión JWT y no estamos en pantallas auth.
+    const inAuthScreen = id === 'screen-login' || id === 'screen-cambio-password' || id === 'screen-loading' || id === 'screen-auth-error';
+    const show = SESSION && SESSION.mode === 'jwt' && !inAuthScreen;
+    btn.classList.toggle('hidden', !show);
   }
 
   function syncNavPrincipal(id) {
@@ -107,43 +117,157 @@
   async function parseResp(r) {
     let data;
     try { data = await r.json(); } catch { data = {}; }
+    // 401 global solo en modo JWT: limpia sesión y redirige a #/login.
+    // En modo panel_key no auto-redirigimos (compat con flujo Eric).
+    if (r.status === 401 && SESSION && SESSION.mode === 'jwt') {
+      clearSession();
+      window.location.hash = '/login';
+    }
     return { ok: r.ok, status: r.status, data };
   }
 
-  // ---------- Auth ----------
+  // ---------- Auth (F-AUTH A3: dual mode JWT + panel_key legacy) ----------
+
+  // Decodifica payload de JWT sin verificar firma (verificación es server-side).
+  // Devuelve null si el token no es JWT o está malformado.
+  function decodeJWT(token) {
+    if (!token || typeof token !== 'string') return null;
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    try {
+      let p = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (p.length % 4) p += '=';
+      return JSON.parse(atob(p));
+    } catch (_) { return null; }
+  }
+
+  function jwtIsExpired(payload) {
+    return !payload || (payload.exp && Date.now() / 1000 > payload.exp);
+  }
+
+  function setSessionFromJWT(token) {
+    const p = decodeJWT(token);
+    if (!p || jwtIsExpired(p)) return false;
+    TOKEN = token;
+    SESSION = {
+      id_usuario: p.sub,
+      nombre: p.name,
+      usuario: p.usuario,
+      role: p.role,
+      tmp_pwd: !!p.tmp_pwd,
+      exp: p.exp,
+      mode: 'jwt',
+    };
+    return true;
+  }
+
+  function setSessionFromPanelKey(key) {
+    TOKEN = key;
+    SESSION = {
+      id_usuario: 'USR-001', nombre: 'Edwin', usuario: 'edwin', role: 'admin',
+      tmp_pwd: false, exp: null, mode: 'panel_key',
+    };
+  }
+
+  function clearSession() {
+    TOKEN = null;
+    SESSION = null;
+    localStorage.removeItem(cfg.LS_JWT_KEY);
+    localStorage.removeItem(cfg.LS_TOKEN_KEY);
+  }
+
+  // Intenta restaurar sesión existente. Devuelve true si hay sesión válida.
+  // No prompts ni navegación; el caller decide qué hacer si false.
   async function autenticar() {
-    // 1. Buscar key en URL ?k=
+    // Prioridad 1: ?k=<panel_key> en URL (compat con QRs/links antiguos).
     const url = new URL(window.location.href);
     const k = url.searchParams.get('k');
-
     if (k) {
-      // Validar y guardar
-      TOKEN = k;
+      setSessionFromPanelKey(k);
       const r = await apiPost(cfg.ENDPOINTS.AUTH);
       if (r.ok && r.data && r.data.success) {
         localStorage.setItem(cfg.LS_TOKEN_KEY, k);
-        // Limpiar la URL para no exponer la key en el hash compartido
         url.searchParams.delete('k');
         window.history.replaceState({}, '', url.pathname + (url.hash || ''));
         return true;
-      } else {
-        TOKEN = null;
-        return false;
       }
-    }
-
-    // 2. Si no hay key en URL, buscar en localStorage
-    const stored = localStorage.getItem(cfg.LS_TOKEN_KEY);
-    if (!stored) return false;
-    TOKEN = stored;
-    // Validar (revalidar siempre — si Eric ha rotado la key, hay que detectarlo)
-    const r = await apiPost(cfg.ENDPOINTS.AUTH);
-    if (!r.ok || !r.data || !r.data.success) {
-      localStorage.removeItem(cfg.LS_TOKEN_KEY);
-      TOKEN = null;
+      clearSession();
       return false;
     }
-    return true;
+
+    // Prioridad 2: JWT en localStorage (F-AUTH preferente).
+    const storedJwt = localStorage.getItem(cfg.LS_JWT_KEY);
+    if (storedJwt && setSessionFromJWT(storedJwt)) {
+      return true;
+    } else if (storedJwt) {
+      // JWT presente pero malformado o expirado — limpiar.
+      localStorage.removeItem(cfg.LS_JWT_KEY);
+    }
+
+    // Prioridad 3: panel_key en localStorage (legacy).
+    const storedKey = localStorage.getItem(cfg.LS_TOKEN_KEY);
+    if (storedKey) {
+      setSessionFromPanelKey(storedKey);
+      const r = await apiPost(cfg.ENDPOINTS.AUTH);
+      if (r.ok && r.data && r.data.success) return true;
+      clearSession();
+      return false;
+    }
+
+    return false;
+  }
+
+  // POST /imar/auth/login. En éxito: guarda JWT en localStorage y rellena SESSION.
+  async function doLogin(usuario, password) {
+    const url = new URL(cfg.API_BASE + cfg.ENDPOINTS.AUTH_LOGIN);
+    let r;
+    try {
+      const fr = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usuario, password }),
+      });
+      let data; try { data = await fr.json(); } catch { data = {}; }
+      r = { ok: fr.ok, status: fr.status, data };
+    } catch (e) {
+      return { ok: false, status: 0, data: { detalle: 'No se pudo contactar con el servidor: ' + e.message } };
+    }
+    if (r.ok && r.data && r.data.success && r.data.token) {
+      localStorage.setItem(cfg.LS_JWT_KEY, r.data.token);
+      // Eliminar panel_key legacy si quedaba (cutover progresivo).
+      localStorage.removeItem(cfg.LS_TOKEN_KEY);
+      setSessionFromJWT(r.data.token);
+    }
+    return r;
+  }
+
+  // POST /imar/auth/cambio-password. Requiere JWT vigente.
+  async function doCambioPassword(passwordActual, passwordNueva) {
+    const url = new URL(cfg.API_BASE + cfg.ENDPOINTS.AUTH_CAMBIO_PWD);
+    let r;
+    try {
+      const fr = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
+        body: JSON.stringify({ password_actual: passwordActual, password_nueva: passwordNueva }),
+      });
+      let data; try { data = await fr.json(); } catch { data = {}; }
+      r = { ok: fr.ok, status: fr.status, data };
+    } catch (e) {
+      return { ok: false, status: 0, data: { detalle: 'No se pudo contactar con el servidor: ' + e.message } };
+    }
+    if (r.ok && r.data && r.data.success && r.data.token) {
+      localStorage.setItem(cfg.LS_JWT_KEY, r.data.token);
+      setSessionFromJWT(r.data.token);
+    }
+    return r;
+  }
+
+  function doLogout() {
+    clearSession();
+    window.location.hash = '/login';
+    // Refresca para resetear estado en memoria limpiamente.
+    window.location.reload();
   }
 
   // ---------- Catálogos ----------
@@ -173,6 +297,8 @@
   // ---------- Router ----------
   function parseHash() {
     const h = (window.location.hash || '#/lista').slice(1);
+    if (h === '/login') return { route: 'login' };
+    if (h === '/cambio-password') return { route: 'cambio-password' };
     if (h === '/nueva') return { route: 'nueva' };
     if (h === '/piezas') return { route: 'piezas' };
     if (h === '/piezas/nueva') return { route: 'pieza-nueva' };
@@ -189,6 +315,20 @@
 
   async function dispatch() {
     const r = parseHash();
+
+    // Rutas auth no requieren sesión previa.
+    if (r.route === 'login') { renderLogin(); return; }
+
+    // El resto requiere TOKEN. Si no hay, ir a login.
+    if (!TOKEN) { navigate('/login'); return; }
+
+    // Si el JWT marca tmp_pwd, forzar cambio antes de cualquier otra navegación.
+    if (SESSION && SESSION.mode === 'jwt' && SESSION.tmp_pwd && r.route !== 'cambio-password') {
+      navigate('/cambio-password');
+      return;
+    }
+
+    if (r.route === 'cambio-password') { renderCambioPassword(); return; }
     if (r.route === 'ficha') {
       await renderFicha(r.id);
     } else if (r.route === 'nueva') {
@@ -196,10 +336,8 @@
     } else if (r.route === 'piezas') {
       await renderPiezas();
     } else if (r.route === 'pedidos') {
-      // Vista #/pedidos-pieza = piezas con filtro stock_bajo forzado.
       FILTRO_PIEZAS.stock_bajo = true;
       await renderPiezas();
-      // Marcar el toggle UI también para que Edwin vea el filtro activo.
       const cb = $('piezas-stock-bajo'); if (cb) cb.checked = true;
     } else if (r.route === 'pieza') {
       await renderPieza(r.id);
@@ -210,6 +348,103 @@
     } else {
       await renderLista();
     }
+  }
+
+  // ---------- Render Login / Cambio Password ----------
+  function renderLogin() {
+    showScreen('screen-login');
+    const errEl = $('login-error');
+    if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
+    const u = $('login-usuario'); if (u) u.value = '';
+    const p = $('login-password'); if (p) p.value = '';
+    setTimeout(() => { const u2 = $('login-usuario'); if (u2) u2.focus(); }, 10);
+  }
+
+  async function onLoginSubmit(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const btn = $('btn-login');
+    const errEl = $('login-error');
+    const u = ($('login-usuario').value || '').trim().toLowerCase();
+    const p = $('login-password').value || '';
+    if (!u || !p) {
+      errEl.textContent = 'Introduce usuario y contraseña.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'Entrando…';
+    errEl.classList.add('hidden');
+    const r = await doLogin(u, p);
+    btn.disabled = false; btn.textContent = 'Entrar';
+    if (!r.ok || !r.data || !r.data.success) {
+      let msg = (r.data && r.data.detalle) || 'No se pudo iniciar sesión';
+      if (r.status === 429) msg = (r.data && r.data.detalle) || 'Demasiados intentos. Espera unos minutos.';
+      if (r.status === 423) msg = (r.data && r.data.detalle) || 'Cuenta bloqueada. Contacta con el administrador.';
+      errEl.textContent = msg;
+      errEl.classList.remove('hidden');
+      return;
+    }
+    // Login OK. Cargar catálogos + config y navegar.
+    try {
+      await Promise.all([cargarCatalogos(), cargarConfig()]);
+    } catch (_) {
+      errEl.textContent = 'Login OK pero no se pudieron cargar datos. Reintenta.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    if (SESSION && SESSION.tmp_pwd) {
+      navigate('/cambio-password');
+    } else {
+      navigate('/lista');
+    }
+  }
+
+  function renderCambioPassword() {
+    showScreen('screen-cambio-password');
+    const errEl = $('chgpwd-error');
+    if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
+    ['chgpwd-actual','chgpwd-nueva','chgpwd-repetir'].forEach((id) => { const el = $(id); if (el) el.value = ''; });
+    const hint = $('chgpwd-hint');
+    if (hint && SESSION) {
+      hint.textContent = SESSION.tmp_pwd
+        ? 'Tu contraseña actual es temporal. Define una nueva para continuar.'
+        : 'Cambia tu contraseña.';
+    }
+    setTimeout(() => { const a = $('chgpwd-actual'); if (a) a.focus(); }, 10);
+  }
+
+  async function onCambioPasswordSubmit(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const btn = $('btn-chgpwd');
+    const errEl = $('chgpwd-error');
+    const actual = $('chgpwd-actual').value || '';
+    const nueva = $('chgpwd-nueva').value || '';
+    const repetir = $('chgpwd-repetir').value || '';
+    if (!actual || !nueva || !repetir) {
+      errEl.textContent = 'Rellena los tres campos.';
+      errEl.classList.remove('hidden'); return;
+    }
+    if (nueva.length < 8) {
+      errEl.textContent = 'La nueva contraseña debe tener al menos 8 caracteres.';
+      errEl.classList.remove('hidden'); return;
+    }
+    if (nueva !== repetir) {
+      errEl.textContent = 'La repetición no coincide con la nueva contraseña.';
+      errEl.classList.remove('hidden'); return;
+    }
+    if (nueva === actual) {
+      errEl.textContent = 'La nueva contraseña debe ser distinta de la actual.';
+      errEl.classList.remove('hidden'); return;
+    }
+    btn.disabled = true; btn.textContent = 'Guardando…';
+    errEl.classList.add('hidden');
+    const r = await doCambioPassword(actual, nueva);
+    btn.disabled = false; btn.textContent = 'Guardar';
+    if (!r.ok || !r.data || !r.data.success) {
+      errEl.textContent = (r.data && r.data.detalle) || 'No se pudo cambiar la contraseña';
+      errEl.classList.remove('hidden'); return;
+    }
+    toast('Contraseña actualizada', 'success');
+    navigate('/lista');
   }
 
   // ---------- Lista ----------
@@ -1431,10 +1666,22 @@
     // Hash routing
     window.addEventListener('hashchange', onHashChange);
 
+    // Forms F-AUTH A3
+    const fl = $('form-login'); if (fl) fl.addEventListener('submit', onLoginSubmit);
+    const fc = $('form-chgpwd'); if (fc) fc.addEventListener('submit', onCambioPasswordSubmit);
+    const bl = $('btn-logout'); if (bl) bl.addEventListener('click', doLogout);
+    const blChg = $('btn-logout-chgpwd'); if (blChg) blChg.addEventListener('click', doLogout);
+
     // Auth + carga catálogos + config (en paralelo, BKL-032 B1)
     showScreen('screen-loading');
     const ok = await autenticar();
-    if (!ok) { showScreen('screen-auth-error'); return; }
+    if (!ok) {
+      // No hay sesión: redirigir a login. La pantalla #/login no requiere
+      // catálogos/config (esos se cargan tras login OK).
+      navigate('/login');
+      renderLogin();
+      return;
+    }
     try {
       await Promise.all([cargarCatalogos(), cargarConfig()]);
     } catch (e) {
@@ -1443,8 +1690,12 @@
       return;
     }
 
-    // Default route
-    if (!window.location.hash) navigate('/lista');
+    // Default route. Si JWT con tmp_pwd, forzar cambio-password.
+    if (SESSION && SESSION.mode === 'jwt' && SESSION.tmp_pwd) {
+      navigate('/cambio-password');
+    } else if (!window.location.hash || window.location.hash === '#/login') {
+      navigate('/lista');
+    }
     dispatch();
   }
 
