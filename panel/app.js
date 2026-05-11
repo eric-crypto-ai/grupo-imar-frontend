@@ -117,9 +117,11 @@
   async function parseResp(r) {
     let data;
     try { data = await r.json(); } catch { data = {}; }
-    // 401 global solo en modo JWT: limpia sesión y redirige a #/login.
-    // En modo panel_key no auto-redirigimos (compat con flujo Eric).
-    if (r.status === 401 && SESSION && SESSION.mode === 'jwt') {
+    // 401 global: limpia sesión y redirige a #/login.
+    // Aplica en modo JWT (sesión expirada) Y en modo panel_key (post-cutover A4
+    // 2026-05-11, panel_key rotado a INVALID — sesiones legacy abiertas deben
+    // redirigirse limpiamente sin que el usuario vea errores en cascada).
+    if (r.status === 401 && SESSION) {
       clearSession();
       window.location.hash = '/login';
     }

@@ -34,6 +34,6 @@ window.IMAR_PANEL_CONFIG = {
   },
   LS_TOKEN_KEY: 'imar_panel_token',  // legacy panel_key
   LS_JWT_KEY:   'imar_jwt',          // F-AUTH A3 — JWT firmado HS256
-  VERSION: '0.8.0',
+  VERSION: '0.8.1',
   LS_FORCE_HARD_KEY: 'imar_force_hard_token',
 };
