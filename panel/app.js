@@ -23,8 +23,8 @@
   const FILTRO_PIEZAS = { q: '', familia: '', id_maquina: '', stock_bajo: false };
 
   // Prioridades consideradas "urgentes" para el chip de filtro rápido.
-  // Reagrupa lo que está parando producción o a punto de pararla; se combina con maquina_parada='Sí'.
-  const PRIORIDADES_URGENTES = ['Parada de línea', 'Riesgo de parada'];
+  // Hoy el enum (P19) es Alta/Media/Baja; se combina con maquina_parada='Sí'.
+  const PRIORIDADES_URGENTES = ['Alta'];
 
   // Mapeo familia → CSS class (sin acentos para clases CSS).
   function familiaCss(f) {
